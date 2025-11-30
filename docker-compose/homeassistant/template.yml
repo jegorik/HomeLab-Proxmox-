@@ -1,0 +1,30 @@
+# Home Assistant Container template and notes
+#
+# Documented variables (use a local `.env` file to override defaults):
+# - TZ: Timezone (e.g., Europe/Riga)
+# - HA_CONFIG_PATH: Host path for Home Assistant configuration (default: ./config)
+#
+# Example `.env` snippet:
+# TZ=Europe/Riga
+# HA_CONFIG_PATH=/opt/homeassistant/config
+#
+# Prerequisites:
+# - Docker Engine 19.03.9+ (Docker Desktop is not supported)
+# - libseccomp 2.4.2+
+# - Create the config directory before starting
+#
+# Exposed ports (via host network mode):
+# - 8123: Home Assistant web UI
+#
+# Quick start:
+# 1. Create the config directory: mkdir -p ./config
+# 2. Create a `.env` file in this directory.
+# 3. Run `docker compose up -d`.
+# 4. Open http://<host>:8123 to complete onboarding.
+#
+# Notes:
+# - This is Home Assistant Container, not HAOS. Add-ons are not supported.
+# - For Zigbee/USB devices, add: --device /dev/ttyUSB0:/dev/ttyUSB0
+#
+# Reference: https://www.home-assistant.io/installation/linux#docker-compose
+

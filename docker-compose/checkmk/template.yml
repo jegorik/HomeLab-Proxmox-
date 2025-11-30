@@ -1,0 +1,20 @@
+# Checkmk deployment template and notes
+#
+# This template documents recommended configuration variables and usage
+# for the `compose.yml` in this directory. It is intended as a human-readable
+# template and quick-start guide.
+
+# Required environment variables (place in a local `.env` file):
+# - CMK_PASSWORD: administrative password for the Checkmk site (required)
+# - CMK_SITE_ID: site identifier (default: cmk)
+# - TZ: timezone used by the container (recommended)
+
+# Example `.env` snippet:
+# CMK_PASSWORD=ReplaceWithStrongPassword
+# CMK_SITE_ID=cmk
+# TZ=Europe/Riga
+
+# Basic usage
+# 1. Create a `.env` file in this directory using the example above.
+# 2. Run `docker compose -f compose.yml up -d` to start the container.
+# 3. Access the web UI on the host port declared in `compose.yml` (default 8080).

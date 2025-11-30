@@ -1,0 +1,25 @@
+# Nginx Proxy Manager template and notes
+#
+# Documented variables (use a local `.env` file to override defaults):
+# - TZ: Timezone for the container (e.g., Europe/Riga)
+#
+# Example `.env` snippet:
+# TZ=Europe/Riga
+#
+# Exposed ports:
+# - 80:   Public HTTP
+# - 443:  Public HTTPS
+# - 81:   Admin web UI
+#
+# Default admin credentials (change on first login):
+#   Email:    admin@example.com
+#   Password: changeme
+#
+# Quick start:
+# 1. Optionally create a `.env` file in this directory.
+# 2. Run `docker compose up -d`.
+# 3. Open http://<host>:81 and log in with default credentials.
+# 4. Change default password immediately after first login.
+#
+# Reference: https://nginxproxymanager.com/setup/
+

@@ -1,0 +1,41 @@
+# Nextcloud AIO (All-In-One) Docker Compose example
+#
+# Purpose:
+# - Deploys the Nextcloud All-In-One container suitable for local/home-lab
+#   environments. This Compose fragment assumes host mounts for data and
+#   the Docker socket for in-container orchestration.
+#
+# Usage:
+# - Adjust `NEXTCLOUD_DATADIR` to point to the host path that will store
+#   Nextcloud user data. Ensure the path exists and has appropriate
+#   permissions for the container.
+# - For production/public deployments, review domain validation and TLS
+#   settings (do not use `SKIP_DOMAIN_VALIDATION=true` in public setups).
+
+services:
+  nextcloud_aio_mastercontainer:
+    container_name: nextcloud-aio-mastercontainer
+    image: ghcr.io/nextcloud-releases/all-in-one:latest
+    restart: always
+    ports:
+      - '8080:8080'   # host:container for Nextcloud AIO UI and setup
+    environment:
+      # Port that the internal Apache will listen on. This is normally
+      # left as the default used by the AIO container, but may be changed
+      # to avoid conflicts on the host.
+      - APACHE_PORT=${APACHE_PORT:-11000}
+      - APACHE_IP_BINDING=${APACHE_IP_BINDING:-0.0.0.0}
+      # Use only for local testing. Disable for public-facing deployments.
+      - SKIP_DOMAIN_VALIDATION=${SKIP_DOMAIN_VALIDATION:-true}
+      # Path inside container where Nextcloud stores user files. Mount a
+      # host path to this location (see volumes below).
+      - NEXTCLOUD_DATADIR=${NEXTCLOUD_DATADIR:-/mnt/nextcloud-data}
+    volumes:
+      - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${NEXTCLOUD_DATADIR:-/mnt/nextcloud-data}:/mnt/nextcloud-data:rw
+    init: true
+
+volumes:
+  nextcloud_aio_mastercontainer:
+    driver: local

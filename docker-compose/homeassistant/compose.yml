@@ -1,0 +1,36 @@
+# Home Assistant Container Docker Compose
+#
+# Purpose:
+# - Runs Home Assistant Core in a Docker container for home automation.
+#   This is the container installation, not the full Home Assistant OS.
+#
+# Usage:
+# - Create a `.env` file with required variables (see template.yml).
+# - Ensure the config directory exists on the host.
+# - Run: docker compose up -d
+# - Access Home Assistant at http://<host>:8123
+#
+# Note:
+# - This installation does not support add-ons. For add-ons, use HAOS.
+# - The container runs in privileged mode for device access.
+#
+# Reference: https://www.home-assistant.io/installation/linux#docker-compose
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      - TZ=${TZ:-Europe/Riga}
+    volumes:
+      - ${HA_CONFIG_PATH:-./config}:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+
+volumes:
+  config:
+    driver: local
+

@@ -1,0 +1,41 @@
+# Wazuh Single-Node deployment template and notes
+#
+# IMPORTANT: This is a reference template.
+# For production use, clone the official Wazuh Docker repository:
+#   git clone https://github.com/wazuh/wazuh-docker.git -b v4.14.1
+#   cd wazuh-docker/single-node
+#
+# Documented variables (place in a local `.env` file):
+# - INDEXER_PASSWORD: Password for the Wazuh indexer (default: SecretPassword)
+# - API_PASSWORD: Password for the Wazuh API (default: MyS3cr37P450r.*-)
+# - DASHBOARD_PASSWORD: Password for the dashboard (default: kibanaserver)
+#
+# Example `.env` snippet:
+# INDEXER_PASSWORD=YourStrongPassword123!
+# API_PASSWORD=AnotherStrongPassword456!
+# DASHBOARD_PASSWORD=DashboardPass789!
+#
+# Host prerequisites:
+# - Set vm.max_map_count: sudo sysctl -w vm.max_map_count=262144
+# - Make persistent: echo "vm.max_map_count=262144" >> /etc/sysctl.conf
+# - Minimum: 8 GB RAM, 4 CPU cores, 50 GB disk
+#
+# Certificate generation (required before first run):
+#   docker compose -f generate-indexer-certs.yml run --rm generator
+#
+# Quick start:
+# 1. Clone official repo: git clone https://github.com/wazuh/wazuh-docker.git -b v4.14.1
+# 2. Navigate to single-node: cd wazuh-docker/single-node
+# 3. Generate certificates (see above)
+# 4. Run: docker compose up -d
+# 5. Access: https://<host> (credentials: admin / SecretPassword)
+#
+# Exposed ports:
+# - 443:   Wazuh Dashboard (HTTPS)
+# - 1514:  Agent communication
+# - 1515:  Agent enrollment
+# - 55000: Wazuh API
+# - 9200:  Indexer API
+#
+# Reference: https://documentation.wazuh.com/current/deployment-options/docker/wazuh-container.html
+

@@ -1,0 +1,39 @@
+# Docker Compose service for Checkmk (Checkmk Raw Edition).
+#
+# Purpose:
+# - Provide a reproducible container deployment for Checkmk used in a
+#   Proxmox-based home lab. This Compose file exposes the Checkmk UI, SNMP
+#   trap port and mounts persistent storage.
+#
+# Usage:
+# - Create a `.env` file alongside this Compose file with the required
+#   variables (see `template.yml` and `.env` example).
+# - Run: `docker compose -f compose.yml up -d` from this directory.
+
+services:
+  monitoring:
+    image: "checkmk/check-mk-raw:2.4.0-latest"
+    container_name: checkmk
+    # Network ports:
+    ports:
+      - "8080:5000"    # HTTP web UI (host:container)
+      - "8000:8000"    # Auxiliary port (container internal)
+      - "162:162/udp"  # SNMP trap listener (UDP)
+    environment:
+      # Timezone for the container. Override in .env if needed.
+      - TZ=${TZ:-Europe/Riga}
+      # Checkmk site admin password: required. Prefer storing in .env
+      - CMK_PASSWORD=${CMK_PASSWORD:?CMK_PASSWORD is required}
+      # Site ID - default is 'cmk' but can be overridden in .env
+      - CMK_SITE_ID=${CMK_SITE_ID:-cmk}
+    # tmpfs reduces disk churn for temporary runtime files
+    tmpfs:
+      - /opt/omd/sites/cmk/tmp:uid=1000,gid=1000
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - data:/omd/sites:rw    # persistent Checkmk site data
+    restart: unless-stopped
+
+volumes:
+  data:
+    driver: local

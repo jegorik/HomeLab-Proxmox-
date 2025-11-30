@@ -1,0 +1,18 @@
+# Nextcloud AIO template and notes
+#
+# Documented variables (use a local `.env` file to override defaults):
+# - NEXTCLOUD_DATADIR: Host path mounted into container for Nextcloud files.
+# - APACHE_PORT: Internal Apache port inside container (not the host mapping).
+# - APACHE_IP_BINDING: IP address Apache binds to inside the container.
+# - SKIP_DOMAIN_VALIDATION: Set to `true` for local testing only.
+
+# Example `.env` snippet:
+# NEXTCLOUD_DATADIR=/mnt/nextcloud-data
+# APACHE_PORT=11000
+# APACHE_IP_BINDING=0.0.0.0
+# SKIP_DOMAIN_VALIDATION=true
+
+# Quick start:
+# 1. Create the `NEXTCLOUD_DATADIR` host directory and set permissions.
+# 2. Place overrides in a local `.env` file in this directory.
+# 3. Run `docker compose -f compose.yml up -d`.

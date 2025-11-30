@@ -1,0 +1,46 @@
+# Prometheus + Grafana Stack template and notes
+#
+# Documented variables (use a local `.env` file to override defaults):
+# - GF_ADMIN_USER: Grafana admin username (default: admin)
+# - GF_ADMIN_PASSWORD: Grafana admin password (default: admin)
+# - GF_ROOT_URL: External URL for Grafana (default: http://localhost:3000)
+# - PROMETHEUS_RETENTION: Data retention period (default: 15d)
+#
+# Example `.env` snippet:
+# GF_ADMIN_USER=admin
+# GF_ADMIN_PASSWORD=YourSecurePassword123!
+# GF_ROOT_URL=http://grafana.homelab.local:3000
+# PROMETHEUS_RETENTION=30d
+#
+# Directory structure required:
+# prometheus-grafana/
+# ├── compose.yml
+# ├── .env
+# ├── prometheus/
+# │   └── prometheus.yml
+# └── grafana/
+#     └── provisioning/
+#         ├── dashboards/
+#         └── datasources/
+#
+# Exposed ports:
+# - 3000: Grafana web UI
+# - 9090: Prometheus web UI and API
+# - 9100: Node Exporter metrics
+#
+# Quick start:
+# 1. Create required directories: mkdir -p prometheus grafana/provisioning/{dashboards,datasources}
+# 2. Copy prometheus.yml to ./prometheus/
+# 3. Create a `.env` file with secure Grafana password.
+# 4. Run: docker compose up -d
+# 5. Access Grafana: http://<host>:3000
+# 6. Add Prometheus as data source: http://prometheus:9090
+#
+# Recommended Grafana dashboards (import by ID):
+# - Node Exporter Full: 1860
+# - Docker monitoring: 893
+#
+# Reference:
+# - https://prometheus.io/docs/prometheus/latest/installation/
+# - https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/
+
