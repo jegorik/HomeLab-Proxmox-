@@ -1,0 +1,155 @@
+# =============================================================================
+# Example Terraform Variables - LXC Grafana Container
+# =============================================================================
+#
+# Copy this file to terraform.tfvars and customize the values.
+# NEVER commit terraform.tfvars to version control - it contains secrets!
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # Edit terraform.tfvars with your values
+#   tofu init -backend-config=pg.backend.conf
+#   tofu plan
+#   tofu apply
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Proxmox Connection (REQUIRED)
+# -----------------------------------------------------------------------------
+
+# Proxmox VE API endpoint
+proxmox_endpoint = "https://192.168.1.100:8006"
+
+# API token: Create in Proxmox GUI -> Datacenter -> Permissions -> API Tokens
+# Format: user@realm!token_id=secret_value
+proxmox_api_token = "root@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Proxmox node name (run 'hostname' on your Proxmox server)
+proxmox_node = "pve"
+
+# SSH user for provisioner (usually root)
+proxmox_ssh_user = "root"
+
+# Skip TLS verification (set to false if you have valid certificates)
+connection_insecure = true
+
+# Use SSH agent for key management
+ssh_agent_enabled = true
+
+# -----------------------------------------------------------------------------
+# LXC Container Identity
+# -----------------------------------------------------------------------------
+
+# Unique container ID (must not conflict with existing VMs/containers)
+lxc_id = 200
+
+# Container hostname
+lxc_hostname = "grafana"
+
+# Description shown in Proxmox GUI
+lxc_description = "Grafana monitoring dashboard - Managed by OpenTofu"
+
+# Tags for organization (visible in Proxmox GUI)
+lxc_tags = ["grafana", "monitoring", "tofu-managed"]
+
+# -----------------------------------------------------------------------------
+# LXC Container Resources
+# -----------------------------------------------------------------------------
+
+# CPU cores (1 is sufficient for small deployments)
+lxc_cpu_cores = 1
+
+# Memory in MB (1024 MB recommended minimum)
+lxc_memory = 1024
+
+# Swap in MB (can be 0 to disable)
+lxc_swap = 512
+
+# Root disk size in GB
+lxc_disk_size = 8
+
+# Storage pool for rootfs
+lxc_disk_storage = "local-lvm"
+
+# -----------------------------------------------------------------------------
+# LXC Container Template
+# -----------------------------------------------------------------------------
+
+# Storage containing LXC templates
+lxc_template_storage = "local"
+
+# Template filename (download first with: pveam download local <template>)
+# Available templates: pveam available | grep ubuntu
+lxc_template_file = "ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+
+# -----------------------------------------------------------------------------
+# LXC Container Network
+# -----------------------------------------------------------------------------
+
+# Network bridge
+lxc_network_bridge = "vmbr0"
+
+# IP address: "dhcp" or static with CIDR (e.g., "192.168.1.50/24")
+lxc_ip_address = "dhcp"
+
+# Gateway (required only for static IP)
+lxc_gateway = ""
+
+# DNS servers (space-separated)
+lxc_dns_servers = "8.8.8.8 8.8.4.4"
+
+# -----------------------------------------------------------------------------
+# LXC Container Security
+# -----------------------------------------------------------------------------
+
+# Run as unprivileged container (recommended)
+lxc_unprivileged = true
+
+# Start on Proxmox boot
+lxc_start_on_boot = true
+
+# Protect from accidental deletion
+lxc_protection = false
+
+# Enable nesting (required for systemd)
+lxc_nesting = true
+
+# -----------------------------------------------------------------------------
+# LXC Container User
+# -----------------------------------------------------------------------------
+
+# Root password (leave empty to auto-generate)
+lxc_root_password = ""
+
+# Path to SSH public key
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+# -----------------------------------------------------------------------------
+# Grafana Configuration
+# -----------------------------------------------------------------------------
+
+# Grafana HTTP port
+grafana_port = 3000
+
+# Grafana admin username
+grafana_admin_user = "admin"
+
+# Grafana admin password (leave empty to auto-generate)
+grafana_admin_password = ""
+
+# Grafana version ("latest" or specific like "10.2.3")
+grafana_version = "latest"
+
+# Allow anonymous access to dashboards
+grafana_allow_anonymous = false
+
+# -----------------------------------------------------------------------------
+# Password Generation
+# -----------------------------------------------------------------------------
+
+# Length of generated passwords
+password_length = 16
+
+# Allowed special characters
+password_special_chars = "!@#$%^&*"

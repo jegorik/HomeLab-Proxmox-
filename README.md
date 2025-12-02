@@ -29,6 +29,10 @@ examples and find concise guidance for each component.
     - Uses `bpg/proxmox` provider (v0.88.0)
     - Features: Cloud image download, TPM 2.0, SSH key injection, QEMU Guest Agent
     - Supports PostgreSQL backend for remote state storage
+  - [`lxc-grafana/`](terraform/lxc-grafana/) — Grafana LXC container for monitoring dashboards.
+    - Unprivileged container with Ubuntu 24.04 LTS
+    - Automated Grafana OSS installation via provisioner
+    - Security hardening and SSH key authentication
 
 ## How to use
 
