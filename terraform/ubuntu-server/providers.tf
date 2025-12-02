@@ -50,18 +50,18 @@ terraform {
 
 provider "proxmox" {
   # Proxmox VE API endpoint URL
-  endpoint  = var.proxmox_endpoint
-  
+  endpoint = var.proxmox_endpoint
+
   # API token in format: user@realm!token_id=secret
   api_token = var.proxmox_api_token
-  
+
   # Skip TLS verification (set to false in production)
-  insecure  = var.connection_option_insecure
+  insecure = var.connection_option_insecure
 
   # SSH configuration for operations requiring direct host access
   # (e.g., cloud-init snippets, ISO uploads)
   ssh {
-    agent    = var.ssh_agent_option   # Use SSH agent for key management
-    username = var.proxmox_user       # SSH username for Proxmox host
+    agent    = var.ssh_agent_option # Use SSH agent for key management
+    username = var.proxmox_user     # SSH username for Proxmox host
   }
 }
