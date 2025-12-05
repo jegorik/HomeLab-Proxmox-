@@ -1,0 +1,68 @@
+# ============================================================================
+# Ansible Group Variables - All Hosts
+# ============================================================================
+# Variables in this file apply to ALL hosts in the inventory.
+# Copy this file to group_vars/all.yml and modify as needed.
+#
+# Precedence (lowest to highest):
+#   1. group_vars/all.yml (this file)
+#   2. group_vars/<group_name>.yml
+#   3. host_vars/<hostname>.yml
+#   4. Playbook vars
+#   5. Command line -e/--extra-vars
+# ============================================================================
+
+# -----------------------------------------------------------------------------
+# SSH Connection Settings
+# -----------------------------------------------------------------------------
+
+# User for SSH connections (created by ansible_user_setup.sh)
+ansible_user: ansible
+
+# Enable privilege escalation for system tasks
+ansible_become: true
+ansible_become_method: sudo
+
+# SSH private key (uncomment and modify path)
+# ansible_ssh_private_key_file: ~/.ssh/ansible_key
+
+# Python interpreter path (Python 3 on most modern systems)
+ansible_python_interpreter: /usr/bin/python3
+
+# SSH connection timeout in seconds
+ansible_ssh_timeout: 30
+
+# -----------------------------------------------------------------------------
+# Package Update Settings (used by update_vm_packages.yml)
+# -----------------------------------------------------------------------------
+
+# Automatically reboot when kernel updates require it
+# Set to false to skip automatic reboots
+reboot_enabled: true
+
+# Maximum time to wait for host to come back after reboot (seconds)
+# Increase for slower systems or VMs
+reboot_timeout: 300
+
+# Remove unused packages and clear package cache after updates
+# Helps keep systems clean and saves disk space
+clean_packages: true
+
+# -----------------------------------------------------------------------------
+# Notification Settings (optional, for future playbooks)
+# -----------------------------------------------------------------------------
+
+# Uncomment to enable notifications
+# notify_enabled: false
+# notify_slack_webhook: ""
+# notify_email: ""
+
+# -----------------------------------------------------------------------------
+# Security Settings (optional, for future playbooks)
+# -----------------------------------------------------------------------------
+
+# Automatic security updates only (Debian/Ubuntu)
+# security_updates_only: false
+
+# Enable unattended-upgrades configuration
+# configure_unattended_upgrades: false

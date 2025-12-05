@@ -7,10 +7,17 @@ hosts in the Proxmox-based home laboratory environment.
 
 ```text
 scripts/
-└── bash/
-    ├── ansible_user_setup.sh   # Ansible user provisioning script
-    ├── .env                    # Environment configuration (not committed)
-    └── .env.example            # Example environment file
+├── bash/                           # Shell scripts
+│   ├── ansible_user_setup.sh       # Ansible user provisioning script
+│   ├── .env                        # Environment configuration (git-ignored)
+│   └── .env.example                # Example environment file
+│
+└── ansible_playbooks/              # Ansible automation playbooks
+    ├── README.md                   # Playbooks documentation
+    ├── update_vm_packages.yml      # System update playbook
+    ├── inventory.yml.example       # Example inventory file
+    └── group_vars/
+        └── all.yml.example         # Example group variables
 ```
 
 ## Available Scripts
@@ -107,12 +114,65 @@ ansible all -m script -a "ansible_user_setup.sh" --become
 When adding new scripts:
 
 1. Include comprehensive docstring/header comments
-2. Use `set -euo pipefail` for strict error handling
-3. Support environment variables for configuration
-4. Add `.env.example` template if needed
-5. Update this README with usage documentation
+2. Use `set -euo pipefail` for strict error handling (bash)
+3. Use tags and handlers appropriately (Ansible)
+4. Support environment variables for configuration
+5. Add example templates (`.example` suffix)
+6. Update this README with usage documentation
+7. Keep playbooks idempotent (safe to run multiple times)
 
 ## License
 
 These scripts are provided as-is for homelab use. Review and test
 before using in production environments.
+
+---
+
+## Ansible Playbooks
+
+### [`ansible_playbooks/update_vm_packages.yml`](ansible_playbooks/update_vm_packages.yml)
+
+Updates system packages on all hosts with automatic reboot support.
+Supports Debian/Ubuntu (apt) and RHEL/CentOS/Fedora (dnf).
+
+**Quick Start:**
+
+```bash
+cd ansible_playbooks
+
+# Create inventory from example
+cp inventory.yml.example inventory.yml
+nano inventory.yml
+
+# Run updates on all hosts
+ansible-playbook -i inventory.yml update_vm_packages.yml
+
+# Dry run (check mode)
+ansible-playbook -i inventory.yml update_vm_packages.yml --check
+
+# Skip automatic reboots
+ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
+
+# Update specific host
+ansible-playbook -i inventory.yml update_vm_packages.yml -l grafana
+```
+
+**Available Tags:**
+
+| Tag | Description |
+|-----|-------------|
+| `update` | Package update tasks only |
+| `cleanup` | Cleanup unused packages and cache |
+| `reboot` | Reboot-related tasks |
+| `debian` | Debian/Ubuntu specific tasks |
+| `redhat` | RHEL/CentOS/Fedora specific tasks |
+
+**Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `reboot_enabled` | `true` | Auto-reboot when kernel updates require it |
+| `reboot_timeout` | `300` | Seconds to wait for host to return |
+| `clean_packages` | `true` | Remove unused packages after updates |
+
+See full documentation: [`ansible_playbooks/README.md`](ansible_playbooks/README.md)

@@ -36,11 +36,17 @@ examples and find concise guidance for each component.
 
 ### Automation Scripts
 
-- [`scripts/`](scripts/) — Shell scripts for host provisioning and automation.
+- [`scripts/`](scripts/) — Shell scripts and Ansible playbooks for host provisioning and automation.
   - [`bash/ansible_user_setup.sh`](scripts/bash/ansible_user_setup.sh) — Ansible user provisioning.
     - Creates automation user with SSH key authentication
     - Configures passwordless sudo for Ansible/Semaphore
     - Supports Debian/Ubuntu and RHEL/CentOS systems
+  - [`ansible_playbooks/`](scripts/ansible_playbooks/) — Ansible playbooks for infrastructure management.
+    - [`update_vm_packages.yml`](scripts/ansible_playbooks/update_vm_packages.yml) — System package updates
+      - Multi-distro: Debian/Ubuntu (apt), RHEL/CentOS/Fedora (dnf/yum)
+      - Conditional reboot when kernel updates require it
+      - Cleanup unused packages and cache
+      - Tags for selective execution
 
 ## How to use
 
@@ -86,6 +92,28 @@ nano .env  # Add your SSH public key
 # Run on target host
 scp ansible_user_setup.sh .env user@target:/tmp/
 ssh user@target 'sudo /tmp/ansible_user_setup.sh /tmp/.env'
+```
+
+### Ansible Playbooks
+
+```bash
+cd scripts/ansible_playbooks
+
+# Create inventory from example
+cp inventory.yml.example inventory.yml
+nano inventory.yml  # Add your hosts
+
+# Update all systems
+ansible-playbook -i inventory.yml update_vm_packages.yml
+
+# Check mode (dry run)
+ansible-playbook -i inventory.yml update_vm_packages.yml --check
+
+# Skip automatic reboot
+ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
+
+# Update specific host
+ansible-playbook -i inventory.yml update_vm_packages.yml -l grafana
 ```
 
 ## Contributing

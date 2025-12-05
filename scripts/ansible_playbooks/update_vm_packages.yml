@@ -1,0 +1,246 @@
+---
+# =============================================================================
+# Ansible Playbook: System Package Update
+# =============================================================================
+#
+# Description:
+#   Updates system packages on Debian/Ubuntu and RHEL/CentOS/Fedora hosts.
+#   Supports automatic reboot when kernel updates require it.
+#
+# Features:
+#   - Multi-distribution support (Debian, Ubuntu, RHEL, CentOS, Fedora, Rocky)
+#   - Conditional reboot only when required
+#   - Clean up of old packages and cache
+#   - Detailed output and logging
+#   - Idempotent execution
+#
+# Usage:
+#   # Update all hosts
+#   ansible-playbook -i inventory.yml update_vm_packages.yml
+#
+#   # Update specific group
+#   ansible-playbook -i inventory.yml update_vm_packages.yml -l webservers
+#
+#   # Skip reboot
+#   ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
+#
+#   # Dry run (check mode)
+#   ansible-playbook -i inventory.yml update_vm_packages.yml --check
+#
+# Tags:
+#   - update    : Package update tasks
+#   - cleanup   : Package cleanup tasks
+#   - reboot    : Reboot tasks
+#   - debian    : Debian/Ubuntu specific tasks
+#   - redhat    : RHEL/CentOS/Fedora specific tasks
+#
+# Variables:
+#   reboot_enabled: true/false - Enable automatic reboot (default: true)
+#   reboot_timeout: seconds - Max wait time for reboot (default: 300)
+#   clean_packages: true/false - Remove unused packages (default: true)
+#
+# Author: HomeLab Infrastructure
+# Last Updated: December 2025
+# =============================================================================
+
+- name: Update System Packages
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    # Reboot configuration
+    reboot_enabled: true
+    reboot_timeout: 300
+    reboot_message: "Reboot initiated by Ansible for system updates"
+
+    # Cleanup configuration
+    clean_packages: true
+
+  # ---------------------------------------------------------------------------
+  # Pre-tasks: Display system information
+  # ---------------------------------------------------------------------------
+  pre_tasks:
+    - name: Display target system information
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          Architecture: {{ ansible_architecture }}
+      tags:
+        - always
+
+  # ---------------------------------------------------------------------------
+  # Tasks
+  # ---------------------------------------------------------------------------
+  tasks:
+    # -------------------------------------------------------------------------
+    # Debian/Ubuntu Systems (APT)
+    # -------------------------------------------------------------------------
+    - name: "[Debian/Ubuntu] Update apt cache"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Upgrade all packages"
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: "{{ clean_packages }}"
+        autoclean: "{{ clean_packages }}"
+      register: apt_upgrade
+      when: ansible_os_family == "Debian"
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Display upgraded packages"
+      ansible.builtin.debug:
+        msg: "{{ apt_upgrade.stdout_lines | default(['No packages upgraded']) }}"
+      when:
+        - ansible_os_family == "Debian"
+        - apt_upgrade.changed
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Remove unused dependencies"
+      ansible.builtin.apt:
+        autoremove: true
+        purge: true
+      when:
+        - ansible_os_family == "Debian"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - debian
+
+    - name: "[Debian/Ubuntu] Clean apt cache"
+      ansible.builtin.apt:
+        autoclean: true
+      when:
+        - ansible_os_family == "Debian"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - debian
+
+    - name: "[Debian/Ubuntu] Check if reboot is required"
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+      when: ansible_os_family == "Debian"
+      tags:
+        - reboot
+        - debian
+
+    # -------------------------------------------------------------------------
+    # RHEL/CentOS/Fedora/Rocky Systems (DNF/YUM)
+    # -------------------------------------------------------------------------
+    - name: "[RHEL/CentOS] Update all packages (dnf)"
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: dnf_upgrade
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "dnf"
+      tags:
+        - update
+        - redhat
+
+    - name: "[RHEL/CentOS] Update all packages (yum)"
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: yum_upgrade
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "yum"
+      tags:
+        - update
+        - redhat
+
+    - name: "[RHEL/CentOS] Remove unused dependencies"
+      ansible.builtin.dnf:
+        autoremove: true
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "dnf"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - redhat
+
+    - name: "[RHEL/CentOS] Clean dnf cache"
+      ansible.builtin.command: dnf clean all
+      changed_when: false
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "dnf"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - redhat
+
+    - name: "[RHEL/CentOS] Check if reboot is required"
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_required_rhel
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "RedHat"
+      tags:
+        - reboot
+        - redhat
+
+    # -------------------------------------------------------------------------
+    # Reboot Tasks (All Systems)
+    # -------------------------------------------------------------------------
+    - name: Set reboot required fact
+      ansible.builtin.set_fact:
+        system_reboot_required: >-
+          {{
+            (ansible_os_family == "Debian" and reboot_required_file.stat.exists | default(false)) or
+            (ansible_os_family == "RedHat" and reboot_required_rhel.rc | default(0) == 1)
+          }}
+      tags:
+        - reboot
+
+    - name: Display reboot status
+      ansible.builtin.debug:
+        msg: "{{ 'Reboot IS required' if system_reboot_required else 'Reboot is NOT required' }}"
+      tags:
+        - reboot
+
+    - name: Reboot system if required
+      ansible.builtin.reboot:
+        msg: "{{ reboot_message }}"
+        connect_timeout: 10
+        reboot_timeout: "{{ reboot_timeout }}"
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: uptime
+      when:
+        - reboot_enabled | bool
+        - system_reboot_required | bool
+      tags:
+        - reboot
+
+  # ---------------------------------------------------------------------------
+  # Post-tasks: Summary
+  # ---------------------------------------------------------------------------
+  post_tasks:
+    - name: Display completion summary
+      ansible.builtin.debug:
+        msg: |
+          ✅ Update completed for {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Reboot performed: {{ 'Yes' if (reboot_enabled and system_reboot_required) else 'No' }}
+      tags:
+        - always   
