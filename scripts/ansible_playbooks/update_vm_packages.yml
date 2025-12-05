@@ -85,7 +85,19 @@
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600
+      register: apt_cache_update
       when: ansible_os_family == "Debian"
+      ignore_errors: true
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Warn if apt cache update failed"
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: apt cache update failed on {{ inventory_hostname }}. Some repos may have issues. Continuing with available packages."
+      when:
+        - ansible_os_family == "Debian"
+        - apt_cache_update is failed
       tags:
         - update
         - debian
