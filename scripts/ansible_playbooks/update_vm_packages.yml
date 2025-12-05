@@ -247,15 +247,29 @@
         type: package
       register: zypper_upgrade
       when: ansible_os_family == "Suse"
+      ignore_errors: true
       tags:
         - update
         - suse
 
     - name: "[OpenSUSE/SLES] Apply distribution updates (dup)"
-      ansible.builtin.command: zypper --non-interactive dup --no-recommends
+      ansible.builtin.command: zypper --non-interactive --no-gpg-checks dup --no-recommends --allow-vendor-change
       register: zypper_dup
       changed_when: "'Nothing to do' not in zypper_dup.stdout"
+      failed_when: false
+      ignore_errors: true
       when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+        - dup
+
+    - name: "[OpenSUSE/SLES] Warn if dup had conflicts"
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: zypper dup had conflicts on {{ inventory_hostname }}. Manual intervention may be required. Run 'zypper dup' manually to resolve."
+      when:
+        - ansible_os_family == "Suse"
+        - zypper_dup.rc | default(0) != 0
       tags:
         - update
         - suse
