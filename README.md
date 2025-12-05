@@ -34,6 +34,14 @@ examples and find concise guidance for each component.
     - Automated Grafana OSS installation via provisioner
     - Security hardening and SSH key authentication
 
+### Automation Scripts
+
+- [`scripts/`](scripts/) — Shell scripts for host provisioning and automation.
+  - [`bash/ansible_user_setup.sh`](scripts/bash/ansible_user_setup.sh) — Ansible user provisioning.
+    - Creates automation user with SSH key authentication
+    - Configures passwordless sudo for Ansible/Semaphore
+    - Supports Debian/Ubuntu and RHEL/CentOS systems
+
 ## How to use
 
 ### Docker Compose
@@ -65,6 +73,20 @@ tofu output -raw ubuntu_vm_password
 - Proxmox VE API token with appropriate permissions
 - PostgreSQL database for state storage (or modify backend.tf for local state)
 - SSH key pair for VM access
+
+### Scripts
+
+```bash
+cd scripts/bash
+
+# Copy and configure environment
+cp .env.example .env
+nano .env  # Add your SSH public key
+
+# Run on target host
+scp ansible_user_setup.sh .env user@target:/tmp/
+ssh user@target 'sudo /tmp/ansible_user_setup.sh /tmp/.env'
+```
 
 ## Contributing
 

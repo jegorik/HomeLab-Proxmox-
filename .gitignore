@@ -37,3 +37,10 @@ terraform.rc
 # Backend configuration with secrets
 *.backend.conf
 .env.backend
+
+# -----------------------------------------------------------------------------
+# Scripts
+# -----------------------------------------------------------------------------
+# Environment files with sensitive data (SSH keys, passwords)
+scripts/**/.env
+!scripts/**/.env.example
