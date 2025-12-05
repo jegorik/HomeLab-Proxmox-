@@ -47,6 +47,9 @@
   hosts: all
   become: true
   gather_facts: true
+  # Connection settings to prevent infinite hangs
+  gather_timeout: 30
+  timeout: 300
 
   vars:
     # Reboot configuration
