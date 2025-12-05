@@ -4,11 +4,11 @@
 # =============================================================================
 #
 # Description:
-#   Updates system packages on Debian/Ubuntu and RHEL/CentOS/Fedora hosts.
+#   Updates system packages on Debian/Ubuntu, RHEL/CentOS/Fedora, and OpenSUSE hosts.
 #   Supports automatic reboot when kernel updates require it.
 #
 # Features:
-#   - Multi-distribution support (Debian, Ubuntu, RHEL, CentOS, Fedora, Rocky)
+#   - Multi-distribution support (Debian, Ubuntu, RHEL, CentOS, Fedora, Rocky, OpenSUSE, SLES)
 #   - Conditional reboot only when required
 #   - Clean up of old packages and cache
 #   - Detailed output and logging
@@ -33,6 +33,7 @@
 #   - reboot    : Reboot tasks
 #   - debian    : Debian/Ubuntu specific tasks
 #   - redhat    : RHEL/CentOS/Fedora specific tasks
+#   - suse      : OpenSUSE/SLES specific tasks
 #
 # Variables:
 #   reboot_enabled: true/false - Enable automatic reboot (default: true)
@@ -215,6 +216,82 @@
         - redhat
 
     # -------------------------------------------------------------------------
+    # OpenSUSE/SLES Systems (Zypper)
+    # -------------------------------------------------------------------------
+    - name: "[OpenSUSE/SLES] Refresh zypper repositories"
+      community.general.zypper:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: zypper_cache_update
+      when: ansible_os_family == "Suse"
+      ignore_errors: true
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Warn if zypper refresh failed"
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: zypper refresh failed on {{ inventory_hostname }}. Some repos may have issues. Continuing with available packages."
+      when:
+        - ansible_os_family == "Suse"
+        - zypper_cache_update is failed
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Update all packages"
+      community.general.zypper:
+        name: "*"
+        state: latest
+        type: package
+      register: zypper_upgrade
+      when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Apply distribution updates (dup)"
+      ansible.builtin.command: zypper --non-interactive dup --no-recommends
+      register: zypper_dup
+      changed_when: "'Nothing to do' not in zypper_dup.stdout"
+      when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Remove unused packages"
+      ansible.builtin.command: zypper --non-interactive packages --unneeded
+      register: zypper_unneeded
+      changed_when: false
+      failed_when: false
+      when:
+        - ansible_os_family == "Suse"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - suse
+
+    - name: "[OpenSUSE/SLES] Clean zypper cache"
+      ansible.builtin.command: zypper clean --all
+      changed_when: false
+      when:
+        - ansible_os_family == "Suse"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - suse
+
+    - name: "[OpenSUSE/SLES] Check if reboot is required"
+      ansible.builtin.stat:
+        path: /run/reboot-needed
+      register: reboot_required_suse
+      when: ansible_os_family == "Suse"
+      tags:
+        - reboot
+        - suse
+
+    # -------------------------------------------------------------------------
     # Reboot Tasks (All Systems)
     # -------------------------------------------------------------------------
     - name: Set reboot required fact
@@ -222,7 +299,8 @@
         system_reboot_required: >-
           {{
             (ansible_os_family == "Debian" and reboot_required_file.stat.exists | default(false)) or
-            (ansible_os_family == "RedHat" and reboot_required_rhel.rc | default(0) == 1)
+            (ansible_os_family == "RedHat" and reboot_required_rhel.rc | default(0) == 1) or
+            (ansible_os_family == "Suse" and reboot_required_suse.stat.exists | default(false))
           }}
       tags:
         - reboot
