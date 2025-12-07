@@ -1,0 +1,155 @@
+# ==============================================================================
+# Fedora CoreOS VM - Example Variables (terraform.tfvars.example)
+# ==============================================================================
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars with real credentials to version control!
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # Edit terraform.tfvars with your values
+#   tofu plan
+#   tofu apply
+#
+# ==============================================================================
+
+# ==============================================================================
+# PROXMOX CONNECTION (REQUIRED)
+# ==============================================================================
+
+# Proxmox API URL (required)
+# Format: https://<ip-or-hostname>:8006
+proxmox_api_url = "https://192.168.0.204:8006"
+
+# Proxmox API token (required)
+# Format: <user>@<realm>!<token_name>=<token_secret>
+# Create token: Datacenter → Permissions → API Tokens → Add
+proxmox_api_token = "terraform@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Proxmox root password (required for Ignition injection)
+# CRITICAL: kvm_arguments requires root@pam authentication with password
+# Leave empty if you don't need Ignition (VM will boot without configuration)
+proxmox_root_password = "your-root-password-here"
+
+# Proxmox node name (default: pve)
+proxmox_node = "pve"
+
+# Skip TLS certificate verification (default: true for self-signed certs)
+proxmox_insecure = true
+
+# ==============================================================================
+# VM IDENTIFICATION
+# ==============================================================================
+
+# VM ID (optional, null for auto-assignment)
+# vm_id = 200
+
+# VM name and hostname
+vm_name = "fcos-vm-01"
+
+# VM description (supports HTML)
+vm_description = "Fedora CoreOS container host - Managed by OpenTofu"
+
+# Tags for organization
+vm_tags = ["fedora-coreos", "container-host", "production"]
+
+# ==============================================================================
+# FEDORA COREOS IMAGE
+# ==============================================================================
+
+# Update stream: stable, testing, next
+fcos_stream = "stable"
+
+# FCOS version (check: https://fedoraproject.org/coreos/download)
+fcos_version = "43.20251110.3.1"
+
+# Local path where image is downloaded (on Proxmox host)
+fcos_image_local_path = "/var/lib/vz/import"
+
+# Storage for images
+proxmox_iso_storage = "local"
+
+# ==============================================================================
+# VM HARDWARE RESOURCES
+# ==============================================================================
+
+# CPU configuration
+vm_cpu_cores   = 2
+vm_cpu_sockets = 1
+vm_cpu_type    = "host"
+
+# Memory in MB (4096 = 4GB)
+vm_memory = 4096
+
+# Disk size (32G recommended for container images)
+vm_disk_size = "32G"
+
+# Storage pool for VM disks
+vm_storage_pool = "local-lvm"
+
+# ==============================================================================
+# NETWORK CONFIGURATION
+# ==============================================================================
+
+# Network bridge
+vm_network_bridge = "vmbr0"
+
+# Network model (virtio recommended)
+vm_network_model = "virtio"
+
+# VLAN tag (null for no VLAN)
+# vm_network_vlan = 100
+
+# Static IP (CIDR notation) or leave empty for DHCP
+# vm_ip_address = "192.168.0.50/24"
+# vm_gateway = "192.168.0.1"
+# vm_dns_servers = ["8.8.8.8", "1.1.1.1"]
+
+# ==============================================================================
+# SSH & USER CONFIGURATION (REQUIRED)
+# ==============================================================================
+
+# SSH username (default: core)
+ssh_user = "core"
+
+# SSH public key (REQUIRED - only way to access FCOS)
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... your-key-here"
+
+# Additional SSH keys (optional)
+# ssh_public_keys_additional = [
+#   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... another-key",
+#   "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB... rsa-key"
+# ]
+
+# ==============================================================================
+# IGNITION CONFIGURATION
+# ==============================================================================
+
+# Timezone (TZ database format)
+timezone = "UTC"
+
+# Install QEMU guest agent (recommended)
+enable_qemu_guest_agent = true
+
+# ==============================================================================
+# VM LIFECYCLE
+# ==============================================================================
+
+# Auto-start on Proxmox boot
+vm_on_boot = true
+
+# Start VM after creation
+vm_started = true
+
+# Protection against accidental deletion
+vm_protection = false
+
+# ==============================================================================
+# DEPLOYMENT CONTROL
+# ==============================================================================
+
+# Set to false to plan without creating
+create_vm = true
+
+# Provisioning timeout in seconds
+provision_timeout = 600

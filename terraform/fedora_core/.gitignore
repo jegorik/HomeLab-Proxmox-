@@ -1,0 +1,154 @@
+# ==============================================================================
+# OpenTofu / Terraform - Git Ignore
+# ==============================================================================
+# 
+# This file specifies which files and directories should be ignored by Git
+# for OpenTofu/Terraform projects.
+#
+# ==============================================================================
+
+# ==============================================================================
+# SENSITIVE FILES - NEVER COMMIT THESE
+# ==============================================================================
+
+# Variable files with actual values (may contain secrets)
+terraform.tfvars
+*.tfvars
+!terraform.tfvars.example
+!*.tfvars.example
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+!*.pub
+
+# ==============================================================================
+# OPENTOFU / TERRAFORM STATE FILES
+# ==============================================================================
+
+# Local state files (sensitive - contain resource data)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# State lock files
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# ==============================================================================
+# PROVIDER AND MODULE CACHE
+# ==============================================================================
+
+# Provider plugins (large, downloaded automatically)
+.terraform/
+
+# Module cache
+.terraform.d/
+
+# ==============================================================================
+# PLAN FILES
+# ==============================================================================
+
+# Saved plan files (may contain sensitive values)
+*.tfplan
+*.plan
+out.plan
+tfplan
+
+# ==============================================================================
+# IDE AND EDITOR FILES
+# ==============================================================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.#*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==============================================================================
+# TEMPORARY AND GENERATED FILES
+# ==============================================================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Log files
+*.log
+logs/
+
+# Override files (local overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ==============================================================================
+# CI/CD ARTIFACTS
+# ==============================================================================
+
+# CI directories
+.github/
+.gitlab/
+.circleci/
+
+# Ignore generated docs
+docs/_build/
+
+# ==============================================================================
+# PROJECT SPECIFIC
+# ==============================================================================
+
+# Downloaded images (large files)
+*.qcow2
+*.img
+*.iso
+
+# Ignition JSON output (may contain secrets)
+*.ign
+ignition.json
+
+# ==============================================================================
+# END OF .gitignore
+# ==============================================================================

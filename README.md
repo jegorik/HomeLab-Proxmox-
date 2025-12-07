@@ -33,6 +33,13 @@ examples and find concise guidance for each component.
     - Unprivileged container with Ubuntu 24.04 LTS
     - Automated Grafana OSS installation via provisioner
     - Security hardening and SSH key authentication
+  - [`fedora_core/`](terraform/fedora_core/) — Fedora CoreOS VM for container workloads.
+    - Immutable OS designed for containerized applications (Podman/Docker)
+    - **Ignition configuration** via Butane YAML templates (not cloud-init)
+    - Uses `poseidon/ct` provider for Butane → Ignition transpilation
+    - QEMU Guest Agent installation via rpm-ostree
+    - SSH key-only authentication (no passwords)
+    - Static IP or DHCP network configuration
 
 ### Automation Scripts
 
@@ -43,7 +50,7 @@ examples and find concise guidance for each component.
     - Supports Debian/Ubuntu and RHEL/CentOS systems
   - [`ansible_playbooks/`](scripts/ansible_playbooks/) — Ansible playbooks for infrastructure management.
     - [`update_vm_packages.yml`](scripts/ansible_playbooks/update_vm_packages.yml) — System package updates
-      - Multi-distro: Debian/Ubuntu (apt), RHEL/CentOS/Fedora (dnf/yum)
+      - Multi-distro: Debian/Ubuntu (apt), RHEL/CentOS/Fedora (dnf/yum), openSUSE/SLES (zypper)
       - Conditional reboot when kernel updates require it
       - Cleanup unused packages and cache
       - Tags for selective execution
@@ -74,11 +81,38 @@ tofu apply
 tofu output -raw ubuntu_vm_password
 ```
 
+**Fedora CoreOS deployment:**
+
+```bash
+cd terraform/fedora_core
+
+# Copy and configure variables
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Add your SSH key and Proxmox credentials
+
+# Initialize providers (includes poseidon/ct for Butane)
+tofu init
+
+# Preview VM creation
+tofu plan
+
+# Deploy Fedora CoreOS VM
+tofu apply
+
+# Get SSH connection command
+tofu output ssh_connection_command
+```
+
+> **Note:** Fedora CoreOS uses Ignition (not cloud-init). The `kvm_arguments`
+> feature for Ignition injection requires `root@pam` password authentication —
+> API tokens alone are insufficient.
+
 **Prerequisites:**
 
 - Proxmox VE API token with appropriate permissions
 - PostgreSQL database for state storage (or modify backend.tf for local state)
 - SSH key pair for VM access
+- For Fedora CoreOS: root@pam password for Ignition injection
 
 ### Scripts
 

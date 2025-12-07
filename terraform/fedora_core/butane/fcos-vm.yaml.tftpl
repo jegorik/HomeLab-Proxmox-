@@ -1,0 +1,196 @@
+# ==============================================================================
+# Fedora CoreOS Butane Configuration Template
+# ==============================================================================
+#
+# This Butane YAML is transpiled to Ignition JSON for Fedora CoreOS provisioning.
+# Butane provides a human-readable format that gets converted to the machine-readable
+# Ignition format that CoreOS uses during first boot.
+#
+# Documentation:
+# - Butane: https://coreos.github.io/butane/
+# - Ignition: https://coreos.github.io/ignition/
+# - Fedora CoreOS: https://docs.fedoraproject.org/en-US/fedora-coreos/
+#
+# Template Variables (provided by OpenTofu):
+# - hostname        : VM hostname
+# - ssh_user        : Username for SSH access (default: core)
+# - ssh_public_key  : Primary SSH public key
+# - ssh_public_keys_additional : List of additional SSH public keys
+# - timezone        : System timezone
+# - enable_qemu_guest_agent : Boolean for QEMU guest agent installation
+# - ip_address      : Static IP address (empty for DHCP)
+# - gateway         : Default gateway for static IP
+# - dns_servers     : List of DNS servers
+#
+# Author: jegorik
+# Last Updated: December 2025
+# ==============================================================================
+
+variant: fcos
+version: "1.5.0"
+
+# ==============================================================================
+# SYSTEM IDENTITY
+# ==============================================================================
+storage:
+  files:
+    # --------------------------------------------------------------------------
+    # Hostname Configuration
+    # --------------------------------------------------------------------------
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: ${hostname}
+
+    # --------------------------------------------------------------------------
+    # Timezone Configuration
+    # --------------------------------------------------------------------------
+    - path: /etc/localtime
+      overwrite: true
+      contents:
+        source: https://raw.githubusercontent.com/eggert/tz/main/${timezone}
+      # Note: This is a symlink approach; CoreOS handles timezone via timedatectl
+      # The systemd unit below sets timezone properly
+
+%{ if ip_address != "" ~}
+    # --------------------------------------------------------------------------
+    # Static Network Configuration (NetworkManager keyfile)
+    # --------------------------------------------------------------------------
+    - path: /etc/NetworkManager/system-connections/static-eth0.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=static-eth0
+          type=ethernet
+          interface-name=eth0
+          autoconnect=true
+          
+          [ethernet]
+          
+          [ipv4]
+          method=manual
+          addresses=${ip_address}
+          gateway=${gateway}
+          dns=${join(";", dns_servers)}
+          
+          [ipv6]
+          method=disabled
+%{ endif ~}
+
+# ==============================================================================
+# USER CONFIGURATION
+# ==============================================================================
+passwd:
+  users:
+    # --------------------------------------------------------------------------
+    # Primary Admin User
+    # --------------------------------------------------------------------------
+    - name: ${ssh_user}
+      # Add user to groups for system administration
+      # - wheel: sudo access (configured via sudoers)
+      # - docker: Access to container runtime (if docker installed)
+      # - systemd-journal: Read system logs
+      groups:
+        - wheel
+        - sudo
+        - systemd-journal
+      # Shell - bash is available on Fedora CoreOS
+      shell: /bin/bash
+      # SSH public keys for passwordless authentication
+      # This is the ONLY way to access Fedora CoreOS
+      ssh_authorized_keys:
+        - ${ssh_public_key}
+%{ for key in ssh_public_keys_additional ~}
+        - ${key}
+%{ endfor ~}
+
+# ==============================================================================
+# SYSTEMD UNITS
+# ==============================================================================
+systemd:
+  units:
+    # --------------------------------------------------------------------------
+    # Set Timezone via timedatectl
+    # Runs once on first boot to configure system timezone
+    # --------------------------------------------------------------------------
+    - name: set-timezone.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Set system timezone to ${timezone}
+        ConditionFirstBoot=yes
+        After=systemd-timedated.service
+        
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/timedatectl set-timezone ${timezone}
+        RemainAfterExit=yes
+        
+        [Install]
+        WantedBy=multi-user.target
+
+%{ if enable_qemu_guest_agent ~}
+    # --------------------------------------------------------------------------
+    # QEMU Guest Agent Installation
+    # 
+    # Fedora CoreOS is an immutable OS - packages are installed via rpm-ostree
+    # which requires a reboot to apply changes. This service:
+    # 1. Installs qemu-guest-agent via rpm-ostree
+    # 2. Reboots the system to apply changes
+    # 3. Only runs on first boot (ConditionPathExists check)
+    #
+    # After reboot, the regular qemu-guest-agent.service will start automatically.
+    # --------------------------------------------------------------------------
+    - name: install-qemu-guest-agent.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Install QEMU Guest Agent via rpm-ostree
+        # Only run if qemu-guest-agent is not yet installed
+        ConditionPathExists=!/usr/bin/qemu-ga
+        After=network-online.target
+        Wants=network-online.target
+        # Run before other services that might depend on guest agent
+        Before=qemu-guest-agent.service
+        
+        [Service]
+        Type=oneshot
+        # Install qemu-guest-agent and reboot to apply rpm-ostree changes
+        ExecStart=/usr/bin/rpm-ostree install --idempotent qemu-guest-agent
+        # Schedule reboot after installation completes
+        ExecStartPost=/usr/bin/systemctl reboot
+        RemainAfterExit=yes
+        # Give enough time for package download and installation
+        TimeoutStartSec=300
+        
+        [Install]
+        WantedBy=multi-user.target
+
+    # --------------------------------------------------------------------------
+    # Enable QEMU Guest Agent Service
+    # This is a dropin that ensures the service is enabled after installation
+    # --------------------------------------------------------------------------
+    - name: qemu-guest-agent.service
+      enabled: true
+      # No contents means we just enable the existing unit from rpm-ostree
+%{ endif ~}
+
+    # --------------------------------------------------------------------------
+    # Serial Console Getty
+    # Enables serial console for emergency access and logging
+    # --------------------------------------------------------------------------
+    - name: serial-getty@ttyS0.service
+      enabled: true
+
+# ==============================================================================
+# KERNEL ARGUMENTS (Optional)
+# ==============================================================================
+# kernel_arguments:
+#   should_exist:
+#     - console=ttyS0,115200n8
+#     - console=tty0
+
+# ==============================================================================
+# END OF BUTANE CONFIGURATION
+# ==============================================================================
