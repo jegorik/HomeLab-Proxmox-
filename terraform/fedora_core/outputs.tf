@@ -1,11 +1,11 @@
-# ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║                     Fedora CoreOS VM - Outputs                                ║
-# ║                                                                               ║
-# ║  Output values for the provisioned Fedora CoreOS VM                          ║
-# ║                                                                               ║
-# ║  Author: jegorik                                                              ║
-# ║  Last Updated: December 2025                                                  ║
-# ╚══════════════════════════════════════════════════════════════════════════════╝
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║                     Fedora CoreOS VM - Outputs                             ║
+# ║                                                                            ║
+# ║  Output values for the provisioned Fedora CoreOS VM                        ║
+# ║                                                                            ║
+# ║  Author: jegorik                                                           ║
+# ║  Last Updated: December 2025                                               ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
 
 # ==============================================================================
 # VM IDENTIFICATION OUTPUTS
@@ -283,7 +283,7 @@ output "ansible_extra_vars" {
 
 output "deployment_workflow" {
   description = "Summary of the two-stage deployment workflow. Follow these steps to complete VM provisioning."
-  value = var.create_vm ? "Stage 1 COMPLETE: VM ${var.vm_name} created (ID: ${proxmox_virtual_environment_vm.fcos[0].vm_id}). Run Ansible playbook to apply Ignition and start VM. See ansible_playbook_command output for details." : null
+  value       = var.create_vm ? "Stage 1 COMPLETE: VM ${var.vm_name} created (ID: ${proxmox_virtual_environment_vm.fcos[0].vm_id}). Run Ansible playbook to apply Ignition and start VM. See ansible_playbook_command output for details." : null
 }
 
 # ==============================================================================

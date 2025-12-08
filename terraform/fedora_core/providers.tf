@@ -85,19 +85,18 @@ provider "proxmox" {
   # Proxmox VE API endpoint URL
   endpoint = var.proxmox_api_url
 
-  # Authentication: Use environment variables for security
-  # PROXMOX_VE_USERNAME and PROXMOX_VE_PASSWORD
-  # Or use api_token (but kvm_arguments won't work!)
+  # Authentication via API token
   api_token = var.proxmox_api_token != "" ? var.proxmox_api_token : null
 
   # Skip TLS verification (set to false in production with valid certs)
   insecure = var.proxmox_insecure
 
   # SSH configuration for operations requiring direct host access
-  # (e.g., file uploads, template downloads)
+  # (e.g., qemu-img convert for disk import)
+  # Uses 'ansible' user created by scripts/bash/setup/ansible_user_setup.sh
   ssh {
     agent    = true
-    username = "root"
+    username = "ansible"
   }
 }
 

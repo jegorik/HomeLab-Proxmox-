@@ -37,9 +37,20 @@
 
 terraform {
   # PostgreSQL backend for remote state storage
+  # 
+  # Option 1: Use environment variable PG_CONN_STR (recommended for CI/CD)
+  # Option 2: Use -backend-config=pg.backend.conf
+  # Option 3: Use -backend-config="conn_str=..." on command line
+  #
   # Initialize with: tofu init -backend-config=pg.backend.conf
+  # Or set: export PG_CONN_STR="postgres://user:pass@host:5432/db"
   backend "pg" {
     # Schema name for state table (isolates from other projects)
     schema_name = "vm_fedora_core"
+    
+    # Connection string is provided via:
+    # - Environment variable: PG_CONN_STR
+    # - Or: -backend-config="conn_str=..."
+    # - Or: pg.backend.conf file
   }
 }
