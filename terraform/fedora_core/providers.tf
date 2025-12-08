@@ -98,9 +98,9 @@ provider "proxmox" {
   # When running via Semaphore UI: pass private_key content via variable
   # When running locally: uses SSH agent (private_key empty)
   ssh {
-    agent       = var.proxmox_ssh_private_key == "" ? true : false
+    agent       = file(var.proxmox_ssh_private_key) == "" ? true : false
     username    = var.proxmox_ssh_username
-    private_key = var.proxmox_ssh_private_key != "" ? var.proxmox_ssh_private_key : null
+    private_key = file(var.proxmox_ssh_private_key) != "" ? file(var.proxmox_ssh_private_key) : null
   }
 }
 

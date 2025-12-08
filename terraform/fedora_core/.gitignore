@@ -16,6 +16,7 @@ terraform.tfvars
 *.tfvars
 !terraform.tfvars.example
 !*.tfvars.example
+generated/*
 
 # Environment variable files
 .env

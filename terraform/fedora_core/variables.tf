@@ -205,9 +205,18 @@ variable "fcos_image_download_url" {
 
 variable "fcos_existing_file_id" {
   description = <<-EOT
-    Use an existing image already present in Proxmox storage.
-    Format: <storage>:<content_type>/<filename>
-    Example: "local:iso/fedora-coreos-43.20251110.3.1-proxmoxve.x86_64.qcow2"
+    Use an existing qcow2 image already present in Proxmox storage.
+    
+    IMPORTANT: For disk import, the format must be:
+      <storage>:import/<filename>
+    
+    Example: "local:import/fedora-coreos-43.20251110.3.1-proxmoxve.x86_64.qcow2"
+    
+    The file must be located in the 'import' directory of the storage:
+      /var/lib/vz/import/<filename>
+    
+    NOT in iso directory! Move the file if needed:
+      mv /var/lib/vz/template/iso/<file>.qcow2 /var/lib/vz/import/
     
     If set, skips downloading and uses this file directly.
     This is useful when:
@@ -215,7 +224,7 @@ variable "fcos_existing_file_id" {
     - Using a custom/modified image
     - Avoiding repeated downloads
     
-    NOTE: The image must already exist in the specified storage.
+    NOTE: The image must already exist in the import directory.
   EOT
   type        = string
   default     = ""
@@ -503,7 +512,7 @@ variable "ssh_public_key" {
   sensitive   = true
 
   validation {
-    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", var.ssh_public_key))
+    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", file(var.ssh_public_key)))
     error_message = "SSH public key must start with ssh-rsa, ssh-ed25519, or ssh-ecdsa."
   }
 }
