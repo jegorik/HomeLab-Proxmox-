@@ -130,6 +130,18 @@ output "ignition_config_hash" {
   value       = sha256(data.ct_config.vm_ignition.rendered)
 }
 
+output "ignition_file_path" {
+  description = <<-EOT
+    Path to the generated Ignition JSON file.
+    This file is used by the Ansible playbook to apply Ignition config.
+    
+    Use this output when running the Ansible playbook:
+      ansible-playbook apply_fcos_ignition.yml \
+        -e "ignition_file_path=$(tofu output -raw ignition_file_path)"
+  EOT
+  value       = var.create_vm ? local_file.ignition_config[0].filename : null
+}
+
 # ==============================================================================
 # IMAGE OUTPUTS
 # ==============================================================================
@@ -218,6 +230,60 @@ output "proxmox_vm_api_path" {
     Useful for direct API calls and integrations.
   EOT
   value       = var.create_vm ? "/nodes/${var.proxmox_node}/qemu/${proxmox_virtual_environment_vm.fcos[0].vm_id}" : null
+}
+
+# ==============================================================================
+# ANSIBLE INTEGRATION OUTPUTS
+# ==============================================================================
+
+output "ansible_playbook_command" {
+  description = <<-EOT
+    Complete Ansible command to apply Ignition config and start the VM.
+    Copy and run this command after 'tofu apply' completes.
+    
+    Prerequisites:
+    - Ansible installed on your local machine or Proxmox host
+    - SSH access to Proxmox host with sudo privileges
+    - The apply_fcos_ignition.yml playbook in your playbooks directory
+  EOT
+  value = var.create_vm ? join("\n", [
+    "# Run this command to apply Ignition and start the VM:",
+    "ansible-playbook ../../scripts/ansible_playbooks/apply_fcos_ignition.yml \\",
+    "  -i \"${replace(var.proxmox_api_url, "https://", "")},\" \\",
+    "  -e \"vm_id=${proxmox_virtual_environment_vm.fcos[0].vm_id}\" \\",
+    "  -e \"proxmox_node=${var.proxmox_node}\" \\",
+    "  -e \"ignition_file_path=${abspath(local_file.ignition_config[0].filename)}\" \\",
+    "  -e \"ansible_user=ansible\" \\",
+    "  -e \"ansible_become=yes\""
+  ]) : null
+}
+
+output "ansible_extra_vars" {
+  description = <<-EOT
+    JSON-formatted extra variables for Ansible playbook.
+    Useful for programmatic integration with Ansible.
+    
+    Usage:
+      ansible-playbook apply_fcos_ignition.yml \
+        -e '@<(tofu output -json ansible_extra_vars)'
+  EOT
+  value = var.create_vm ? jsonencode({
+    vm_id              = proxmox_virtual_environment_vm.fcos[0].vm_id
+    proxmox_node       = var.proxmox_node
+    ignition_file_path = abspath(local_file.ignition_config[0].filename)
+    vm_name            = var.vm_name
+    ssh_user           = var.ssh_user
+    expected_ip        = var.vm_ip_address != "" ? split("/", var.vm_ip_address)[0] : ""
+  }) : null
+}
+
+# ==============================================================================
+# DEPLOYMENT WORKFLOW SUMMARY
+# ==============================================================================
+
+output "deployment_workflow" {
+  description = "Summary of the two-stage deployment workflow. Follow these steps to complete VM provisioning."
+  value = var.create_vm ? "Stage 1 COMPLETE: VM ${var.vm_name} created (ID: ${proxmox_virtual_environment_vm.fcos[0].vm_id}). Run Ansible playbook to apply Ignition and start VM. See ansible_playbook_command output for details." : null
 }
 
 # ==============================================================================

@@ -1,178 +1,105 @@
-# Scripts - HomeLab Automation Utilities
+# HomeLab Scripts & Automation Tools
 
-This directory contains automation scripts for managing and configuring
-hosts in the Proxmox-based home laboratory environment.
+[![Ansible](https://img.shields.io/badge/Ansible-2.10+-red?style=flat&logo=ansible)](https://www.ansible.com/)
+[![Bash](https://img.shields.io/badge/Bash-5.0+-green?style=flat&logo=gnubash)](https://www.gnu.org/software/bash/)
 
-## Directory Structure
+Collection of reusable automation scripts for HomeLab infrastructure management.
+
+## 📁 Structure
 
 ```text
 scripts/
-├── bash/                           # Shell scripts
-│   ├── ansible_user_setup.sh       # Ansible user provisioning script
-│   ├── .env                        # Environment configuration (git-ignored)
-│   └── .env.example                # Example environment file
+├── ansible/                 # Ansible playbooks & configurations
+│   ├── ansible.cfg          # Global Ansible config
+│   ├── inventory.yml.example
+│   ├── group_vars/          # Group variables
+│   └── playbooks/           # Playbooks by category
+│       ├── proxmox/         # Proxmox host management
+│       ├── maintenance/     # System maintenance
+│       └── debug/           # Testing & debugging
 │
-└── ansible_playbooks/              # Ansible automation playbooks
-    ├── README.md                   # Playbooks documentation
-    ├── update_vm_packages.yml      # System update playbook
-    ├── inventory.yml.example       # Example inventory file
-    └── group_vars/
-        └── all.yml.example         # Example group variables
+└── bash/                    # Shell scripts
+    └── setup/               # Initial setup scripts
 ```
 
-## Available Scripts
+## 🚀 Quick Start
 
-### [`bash/ansible_user_setup.sh`](bash/ansible_user_setup.sh)
-
-Creates and configures a dedicated Ansible automation user on target Linux hosts.
-This prepares systems for management by Ansible/Semaphore UI.
-
-**Features:**
-
-- Creates user account with SSH key authentication
-- Configures passwordless sudo access
-- Supports Debian/Ubuntu (sudo group) and RHEL/CentOS (wheel group)
-- Idempotent - safe to run multiple times
-- Validates all configurations after setup
-- Color-coded output for easy reading
-- Dry-run mode for testing
-
-**Quick Start:**
+### Ansible
 
 ```bash
-# 1. Copy and configure environment file
-cd scripts/bash
-cp .env.example .env
-nano .env  # Add your SSH public key
+cd ansible
 
-# 2. Copy script to target host
-scp ansible_user_setup.sh .env user@target-host:/tmp/
-
-# 3. Run on target host
-ssh user@target-host
-sudo /tmp/ansible_user_setup.sh /tmp/.env
-```
-
-**Usage Options:**
-
-```bash
-# With .env file in same directory
-sudo ./ansible_user_setup.sh
-
-# With custom environment file
-sudo ./ansible_user_setup.sh /path/to/custom.env
-
-# Dry-run mode (no changes)
-sudo ./ansible_user_setup.sh --dry-run
-
-# Show help
-./ansible_user_setup.sh --help
-```
-
-**Environment Variables:**
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ANSIBLE_USER` | Username to create | `ansible` |
-| `ANSIBLE_SSH_KEY` | SSH public key (required) | - |
-| `ANSIBLE_SHELL` | User shell | `/bin/bash` |
-| `ANSIBLE_SUDO` | Enable passwordless sudo | `true` |
-
-## Security Considerations
-
-1. **Never commit `.env` files** - They contain sensitive SSH keys
-2. **Restrict file permissions** - `chmod 600 .env`
-3. **Use SSH key authentication** - Passwords are not configured
-4. **Audit sudo access** - Passwordless sudo is a security trade-off for automation
-
-## Use Cases
-
-### Preparing Hosts for Semaphore UI
-
-[Semaphore](https://semaphore.run/) is a modern UI for Ansible. This script
-prepares target hosts with the SSH key from Semaphore:
-
-1. Generate SSH key pair in Semaphore UI (Key Store)
-2. Copy the public key to `.env` file
-3. Run script on each target host
-4. Add hosts to Semaphore inventory
-
-### Bulk Host Provisioning
-
-Use with `pdsh` or Ansible itself for bulk provisioning:
-
-```bash
-# Using pdsh
-pdsh -w host[1-10] 'sudo bash -s' < ansible_user_setup.sh
-
-# Using Ansible (bootstrap playbook)
-ansible all -m script -a "ansible_user_setup.sh" --become
-```
-
-## Contributing
-
-When adding new scripts:
-
-1. Include comprehensive docstring/header comments
-2. Use `set -euo pipefail` for strict error handling (bash)
-3. Use tags and handlers appropriately (Ansible)
-4. Support environment variables for configuration
-5. Add example templates (`.example` suffix)
-6. Update this README with usage documentation
-7. Keep playbooks idempotent (safe to run multiple times)
-
-## License
-
-These scripts are provided as-is for homelab use. Review and test
-before using in production environments.
-
----
-
-## Ansible Playbooks
-
-### [`ansible_playbooks/update_vm_packages.yml`](ansible_playbooks/update_vm_packages.yml)
-
-Updates system packages on all hosts with automatic reboot support.
-Supports Debian/Ubuntu (apt) and RHEL/CentOS/Fedora (dnf).
-
-**Quick Start:**
-
-```bash
-cd ansible_playbooks
-
-# Create inventory from example
+# 1. Setup inventory
 cp inventory.yml.example inventory.yml
 nano inventory.yml
 
-# Run updates on all hosts
-ansible-playbook -i inventory.yml update_vm_packages.yml
+# 2. Test connectivity
+ansible-playbook playbooks/debug/test_connection.yml
 
-# Dry run (check mode)
-ansible-playbook -i inventory.yml update_vm_packages.yml --check
-
-# Skip automatic reboots
-ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
-
-# Update specific host
-ansible-playbook -i inventory.yml update_vm_packages.yml -l grafana
+# 3. Run maintenance
+ansible-playbook playbooks/maintenance/update_packages.yml
 ```
 
-**Available Tags:**
+### Bash
 
-| Tag | Description |
-|-----|-------------|
-| `update` | Package update tasks only |
-| `cleanup` | Cleanup unused packages and cache |
-| `reboot` | Reboot-related tasks |
-| `debian` | Debian/Ubuntu specific tasks |
-| `redhat` | RHEL/CentOS/Fedora specific tasks |
+```bash
+cd bash/setup
 
-**Variables:**
+# 1. Configure environment
+cp .env.example .env
+nano .env  # Add your SSH key
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `reboot_enabled` | `true` | Auto-reboot when kernel updates require it |
-| `reboot_timeout` | `300` | Seconds to wait for host to return |
-| `clean_packages` | `true` | Remove unused packages after updates |
+# 2. Deploy to new host
+scp ansible_user_setup.sh .env root@newhost:/tmp/
+ssh root@newhost "bash /tmp/ansible_user_setup.sh /tmp/.env"
+```
 
-See full documentation: [`ansible_playbooks/README.md`](ansible_playbooks/README.md)
+## 📋 Available Tools
+
+### Ansible Playbooks
+
+| Category | Playbook | Description |
+|----------|----------|-------------|
+| proxmox | `apply_fcos_ignition.yml` | Apply Ignition to Fedora CoreOS VM |
+| maintenance | `update_packages.yml` | Update packages (multi-distro) |
+| debug | `test_connection.yml` | Test SSH connectivity |
+
+### Bash Scripts
+
+| Category | Script | Description |
+|----------|--------|-------------|
+| setup | `ansible_user_setup.sh` | Create Ansible user on hosts |
+
+## 🔌 Integration
+
+### Semaphore UI
+
+All scripts designed for Semaphore UI integration:
+
+- **Playbook paths**: `scripts/ansible/playbooks/<category>/<name>.yml`
+- **Inventory**: `scripts/ansible/inventory.yml`
+- **Variables**: Via Semaphore environment or `group_vars/`
+
+### OpenTofu / Terraform
+
+Some playbooks work with OpenTofu outputs:
+
+```bash
+# Example: Fedora CoreOS deployment
+tofu -chdir=terraform/fedora_core apply
+ansible-playbook scripts/ansible/playbooks/proxmox/apply_fcos_ignition.yml \
+  -e @terraform/fedora_core/generated/vm-ansible-vars.yml
+```
+
+## 📝 Contributing
+
+When adding new scripts:
+
+1. Choose appropriate category folder
+2. Include comprehensive header documentation
+3. Add README entry
+4. Test before committing
+
+---
+
+See individual READMEs in each folder for detailed documentation.

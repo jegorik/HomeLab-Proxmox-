@@ -5,11 +5,16 @@
 # Copy this file to terraform.tfvars and fill in your values.
 # NEVER commit terraform.tfvars with real credentials to version control!
 #
+# Two-Stage Deployment:
+#   1. tofu apply          → Creates VM (stopped) + ignition.json
+#   2. ansible-playbook    → Applies Ignition via sudo, starts VM
+#
 # Usage:
 #   cp terraform.tfvars.example terraform.tfvars
 #   # Edit terraform.tfvars with your values
 #   tofu plan
 #   tofu apply
+#   # Then run Ansible playbook (see outputs)
 #
 # ==============================================================================
 
@@ -25,11 +30,6 @@ proxmox_api_url = "https://192.168.0.204:8006"
 # Format: <user>@<realm>!<token_name>=<token_secret>
 # Create token: Datacenter → Permissions → API Tokens → Add
 proxmox_api_token = "terraform@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-# Proxmox root password (required for Ignition injection)
-# CRITICAL: kvm_arguments requires root@pam authentication with password
-# Leave empty if you don't need Ignition (VM will boot without configuration)
-proxmox_root_password = "your-root-password-here"
 
 # Proxmox node name (default: pve)
 proxmox_node = "pve"
@@ -131,6 +131,10 @@ timezone = "UTC"
 # Install QEMU guest agent (recommended)
 enable_qemu_guest_agent = true
 
+# Output directory for generated Ignition JSON
+# This file is used by Ansible playbook
+ignition_output_path = "./output"
+
 # ==============================================================================
 # VM LIFECYCLE
 # ==============================================================================
@@ -139,7 +143,8 @@ enable_qemu_guest_agent = true
 vm_on_boot = true
 
 # Start VM after creation
-vm_started = true
+# NOTE: With two-stage deployment, set to false - Ansible will start VM
+vm_started = false
 
 # Protection against accidental deletion
 vm_protection = false

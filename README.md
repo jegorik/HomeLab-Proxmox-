@@ -44,16 +44,18 @@ examples and find concise guidance for each component.
 ### Automation Scripts
 
 - [`scripts/`](scripts/) — Shell scripts and Ansible playbooks for host provisioning and automation.
-  - [`bash/ansible_user_setup.sh`](scripts/bash/ansible_user_setup.sh) — Ansible user provisioning.
-    - Creates automation user with SSH key authentication
-    - Configures passwordless sudo for Ansible/Semaphore
-    - Supports Debian/Ubuntu and RHEL/CentOS systems
-  - [`ansible_playbooks/`](scripts/ansible_playbooks/) — Ansible playbooks for infrastructure management.
-    - [`update_vm_packages.yml`](scripts/ansible_playbooks/update_vm_packages.yml) — System package updates
-      - Multi-distro: Debian/Ubuntu (apt), RHEL/CentOS/Fedora (dnf/yum), openSUSE/SLES (zypper)
-      - Conditional reboot when kernel updates require it
-      - Cleanup unused packages and cache
-      - Tags for selective execution
+  - [`ansible/`](scripts/ansible/) — Ansible configurations and playbooks.
+    - [`playbooks/proxmox/`](scripts/ansible/playbooks/proxmox/) — Proxmox host management
+      - `apply_fcos_ignition.yml` — Apply Ignition config to Fedora CoreOS VMs
+    - [`playbooks/maintenance/`](scripts/ansible/playbooks/maintenance/) — System maintenance
+      - `update_packages.yml` — Multi-distro package updates (Debian, RHEL, SUSE)
+    - [`playbooks/debug/`](scripts/ansible/playbooks/debug/) — Testing & debugging
+      - `test_connection.yml` — SSH connectivity verification
+  - [`bash/`](scripts/bash/) — Shell scripts for system setup.
+    - [`setup/ansible_user_setup.sh`](scripts/bash/setup/ansible_user_setup.sh) — Ansible user provisioning
+      - Creates automation user with SSH key authentication
+      - Configures passwordless sudo for Ansible/Semaphore
+      - Supports Debian/Ubuntu and RHEL/CentOS systems
 
 ## How to use
 
@@ -117,7 +119,7 @@ tofu output ssh_connection_command
 ### Scripts
 
 ```bash
-cd scripts/bash
+cd scripts/bash/setup
 
 # Copy and configure environment
 cp .env.example .env
@@ -131,23 +133,26 @@ ssh user@target 'sudo /tmp/ansible_user_setup.sh /tmp/.env'
 ### Ansible Playbooks
 
 ```bash
-cd scripts/ansible_playbooks
+cd scripts/ansible
 
 # Create inventory from example
 cp inventory.yml.example inventory.yml
 nano inventory.yml  # Add your hosts
 
+# Test connectivity
+ansible-playbook playbooks/debug/test_connection.yml
+
 # Update all systems
-ansible-playbook -i inventory.yml update_vm_packages.yml
+ansible-playbook playbooks/maintenance/update_packages.yml
 
 # Check mode (dry run)
-ansible-playbook -i inventory.yml update_vm_packages.yml --check
+ansible-playbook playbooks/maintenance/update_packages.yml --check
 
 # Skip automatic reboot
-ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
+ansible-playbook playbooks/maintenance/update_packages.yml --skip-tags reboot
 
 # Update specific host
-ansible-playbook -i inventory.yml update_vm_packages.yml -l grafana
+ansible-playbook playbooks/maintenance/update_packages.yml -l grafana
 ```
 
 ## Contributing

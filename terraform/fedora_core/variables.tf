@@ -28,30 +28,16 @@ variable "proxmox_api_url" {
 
 variable "proxmox_api_token" {
   description = <<-EOT
-    Proxmox API token for authentication (used for most operations).
+    Proxmox API token for authentication.
     Format: <user>@<realm>!<token_name>=<token_secret>
     Example: terraform@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     
-    IMPORTANT: This token is used for standard VM operations.
-    For kvm_arguments (Ignition injection), root password auth is required.
+    NOTE: This token is used for VM creation operations.
+    Ignition injection is handled separately via Ansible playbook
+    (which uses sudo on the Proxmox host).
   EOT
   type        = string
   sensitive   = true
-}
-
-variable "proxmox_root_password" {
-  description = <<-EOT
-    Proxmox root@pam password for operations requiring kvm_arguments.
-    
-    CRITICAL: The kvm_arguments parameter (used for Ignition injection via
-    -fw_cfg) requires root@pam authentication with password. API tokens
-    do NOT work for this operation.
-    
-    If left empty, the VM will be created but without Ignition config.
-  EOT
-  type        = string
-  sensitive   = true
-  default     = ""
 }
 
 variable "proxmox_node" {
@@ -183,6 +169,27 @@ variable "fcos_image_download_url" {
     URL to download Fedora CoreOS QCOW2 image if not found locally.
     If empty, will be constructed from stream and version.
     Leave empty to use official Fedora mirrors.
+    
+    NOTE: Official FCOS images are compressed (.qcow2.xz).
+    For pre-downloaded/decompressed images, use fcos_existing_file_id.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "fcos_existing_file_id" {
+  description = <<-EOT
+    Use an existing image already present in Proxmox storage.
+    Format: <storage>:<content_type>/<filename>
+    Example: "local:iso/fedora-coreos-43.20251110.3.1-proxmoxve.x86_64.qcow2"
+    
+    If set, skips downloading and uses this file directly.
+    This is useful when:
+    - Image was pre-downloaded and decompressed manually
+    - Using a custom/modified image
+    - Avoiding repeated downloads
+    
+    NOTE: The image must already exist in the specified storage.
   EOT
   type        = string
   default     = ""
@@ -470,7 +477,7 @@ variable "ssh_public_key" {
   sensitive   = true
 
   validation {
-    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", var.ssh_public_key))
+    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", file(var.ssh_public_key)))
     error_message = "SSH public key must start with ssh-rsa, ssh-ed25519, or ssh-ecdsa."
   }
 }
@@ -708,4 +715,26 @@ variable "provision_timeout" {
     condition     = var.provision_timeout >= 60 && var.provision_timeout <= 3600
     error_message = "Provision timeout must be between 60 and 3600 seconds."
   }
+}
+
+# ==============================================================================
+# IGNITION OUTPUT CONFIGURATION (FOR ANSIBLE INTEGRATION)
+# ==============================================================================
+
+variable "ignition_output_path" {
+  description = <<-EOT
+    Directory path where the generated Ignition JSON file will be saved.
+    This file is used by the Ansible playbook to apply Ignition config to the VM.
+    
+    The file will be named: ignition-<vm_name>.json
+    
+    Workflow:
+    1. OpenTofu creates VM (stopped) and generates ignition JSON file
+    2. Ansible playbook reads this file and applies it via 'qm set -args'
+    3. Ansible starts the VM
+    
+    Relative paths are relative to the OpenTofu working directory.
+  EOT
+  type        = string
+  default     = "./output"
 }
