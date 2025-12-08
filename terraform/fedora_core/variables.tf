@@ -477,7 +477,7 @@ variable "ssh_public_key" {
   sensitive   = true
 
   validation {
-    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", file(var.ssh_public_key)))
+    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", var.ssh_public_key))
     error_message = "SSH public key must start with ssh-rsa, ssh-ed25519, or ssh-ecdsa."
   }
 }
