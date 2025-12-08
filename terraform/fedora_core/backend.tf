@@ -38,19 +38,17 @@
 terraform {
   # PostgreSQL backend for remote state storage
   # 
-  # Option 1: Use environment variable PG_CONN_STR (recommended for CI/CD)
-  # Option 2: Use -backend-config=pg.backend.conf
-  # Option 3: Use -backend-config="conn_str=..." on command line
+  # For Semaphore UI: Use TF_CLI_ARGS_init to pass backend config
+  # because PG_CONN_STR conflicts with Semaphore's own database.
   #
-  # Initialize with: tofu init -backend-config=pg.backend.conf
-  # Or set: export PG_CONN_STR="postgres://user:pass@host:5432/db"
+  # In Semaphore Variable Group, set:
+  #   TF_CLI_ARGS_init = -backend-config=conn_str=postgres://user:pass@host:5432/db
+  #
+  # For local development:
+  #   tofu init -backend-config=pg.backend.conf
+  #
   backend "pg" {
-    # Schema name for state table (isolates from other projects)
+    # Schema name isolates state from other projects in same database
     schema_name = "vm_fedora_core"
-    
-    # Connection string is provided via:
-    # - Environment variable: PG_CONN_STR
-    # - Or: -backend-config="conn_str=..."
-    # - Or: pg.backend.conf file
   }
 }
