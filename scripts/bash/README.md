@@ -4,7 +4,7 @@ Shell scripts for system setup and automation tasks.
 
 ## 📁 Structure
 
-```
+```text
 bash/
 ├── setup/                   # Initial setup scripts
 │   ├── ansible_user_setup.sh   # Create Ansible automation user
@@ -21,6 +21,7 @@ bash/
 **Purpose**: Create and configure a dedicated Ansible automation user on target hosts.
 
 **Features**:
+
 - Creates user with SSH key authentication
 - Configures passwordless sudo
 - Supports Debian/Ubuntu and RHEL/CentOS

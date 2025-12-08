@@ -9,11 +9,13 @@ Playbooks for routine system maintenance tasks across all managed hosts.
 **Purpose**: Update system packages on multiple Linux distributions.
 
 **Supported Distributions**:
+
 - Debian / Ubuntu (APT)
 - RHEL / CentOS / Fedora / Rocky (DNF/YUM)
 - OpenSUSE / SLES (Zypper)
 
 **Features**:
+
 - ✅ Multi-distribution support
 - ✅ Conditional reboot when required
 - ✅ Package cache cleanup
@@ -60,7 +62,7 @@ ansible-playbook update_packages.yml --check
 
 **Example Output**:
 
-```
+```text
 TASK [Display target system information] ***************************************
 ok: [ubuntu-server] => 
   msg: |-

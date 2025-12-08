@@ -7,6 +7,7 @@ Scripts for initial host configuration and preparation for Ansible management.
 ### ansible_user_setup.sh
 
 Creates a dedicated Ansible automation user with:
+
 - SSH public key authentication
 - Passwordless sudo access
 - Proper home directory and shell
@@ -41,6 +42,7 @@ ssh ansible@$TARGET "whoami && sudo whoami"
 ## ⚠️ Prerequisites
 
 On target host:
+
 - Root or sudo access for initial run
 - SSH server running
 - Internet access (for package installation if needed)

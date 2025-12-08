@@ -94,9 +94,13 @@ provider "proxmox" {
   # SSH configuration for operations requiring direct host access
   # (e.g., qemu-img convert for disk import)
   # Uses 'ansible' user created by scripts/bash/setup/ansible_user_setup.sh
+  #
+  # When running via Semaphore UI: pass private_key content via variable
+  # When running locally: uses SSH agent (private_key empty)
   ssh {
-    agent    = true
-    username = "ansible"
+    agent       = var.proxmox_ssh_private_key == "" ? true : false
+    username    = var.proxmox_ssh_username
+    private_key = var.proxmox_ssh_private_key != "" ? var.proxmox_ssh_private_key : null
   }
 }
 

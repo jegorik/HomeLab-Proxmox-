@@ -8,12 +8,14 @@ Playbooks for debugging connectivity and testing Ansible configurations.
 
 **Purpose**: Verify SSH connectivity to all hosts before running other playbooks.
 
-**Use Case**: 
+**Use Case**:
+
 - Troubleshoot connection issues
 - Validate inventory configuration
 - Quick health check of managed hosts
 
 **Features**:
+
 - Fast execution (minimal timeouts)
 - No privilege escalation required
 - Shows system info on success
@@ -38,7 +40,8 @@ ansible-playbook test_connection.yml -vvv
 **Output Examples**:
 
 Success:
-```
+
+```text
 TASK [Display ping result] *****************************************************
 ok: [ubuntu-server] => 
   msg: ✅ SSH connection to ubuntu-server successful!
@@ -49,7 +52,8 @@ ok: [ubuntu-server] =>
 ```
 
 Failure:
-```
+
+```text
 TASK [Ping host (SSH connectivity test)] ***************************************
 fatal: [unreachable-host]: UNREACHABLE! => {
     "msg": "Failed to connect to the host via ssh: ssh: connect to host 192.168.0.100 port 22: Connection timed out",

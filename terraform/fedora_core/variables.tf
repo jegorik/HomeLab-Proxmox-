@@ -60,6 +60,32 @@ variable "proxmox_insecure" {
   default     = true
 }
 
+variable "proxmox_ssh_private_key" {
+  description = <<-EOT
+    SSH private key content for Proxmox host access.
+    Used by bpg/proxmox provider for disk image operations.
+    
+    When running via Semaphore UI, set as environment variable:
+    TF_VAR_proxmox_ssh_private_key="-----BEGIN OPENSSH PRIVATE KEY-----..."
+    
+    When empty, falls back to SSH agent (for local development).
+    The key must correspond to the 'ansible' user on Proxmox host.
+  EOT
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "proxmox_ssh_username" {
+  description = <<-EOT
+    SSH username for Proxmox host access.
+    Used by bpg/proxmox provider for disk image upload operations.
+    Typically 'ansible' user with sudo privileges (since root login is disabled).
+  EOT
+  type        = string
+  default     = "ansible"
+}
+
 # ==============================================================================
 # VM IDENTIFICATION & BASIC SETTINGS
 # ==============================================================================

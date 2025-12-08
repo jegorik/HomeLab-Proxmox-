@@ -7,7 +7,7 @@ Ansible playbooks and configurations for HomeLab infrastructure management.
 
 ## 📁 Structure
 
-```
+```text
 ansible/
 ├── ansible.cfg              # Global Ansible configuration
 ├── inventory.yml.example    # Example inventory file

@@ -114,7 +114,7 @@ Or use local state by modifying `backend.tf`.
 
 | Variable | Description |
 |----------|-------------|
-| `proxmox_api_url` | Proxmox API URL (https://host:8006) |
+| `proxmox_api_url` | Proxmox API URL (<https://host:8006>) |
 | `proxmox_api_token` | API token (user@realm!token=secret) |
 | `proxmox_node` | Target Proxmox node name |
 | `ssh_public_key` | SSH public key for VM access |
