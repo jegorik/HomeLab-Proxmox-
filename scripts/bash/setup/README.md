@@ -26,6 +26,9 @@ One-time setup for Fedora CoreOS deployment on Proxmox VE:
 **Usage:**
 
 ```bash
+# Preview changes without making them (dry-run)
+ssh root@proxmox-host 'bash -s -- --dry-run' < proxmox_fcos_storage_setup.sh
+
 # Run directly on Proxmox host
 ssh root@proxmox-host
 bash /path/to/proxmox_fcos_storage_setup.sh
@@ -35,9 +38,24 @@ ssh root@proxmox-host 'bash -s' < proxmox_fcos_storage_setup.sh
 
 # Or from repository root
 ssh root@proxmox-host < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
+# Get help and see all options
+bash proxmox_fcos_storage_setup.sh --help
 ```
 
-No environment variables needed - fully automated.
+**Options:**
+
+- `--dry-run, -n` - Preview all changes without executing them
+- `--help, -h` - Display usage information and environment variables
+
+**Environment Variables:**
+
+- `STORAGE_NAME` - Storage name in Proxmox (default: `coreos`)
+- `STORAGE_PATH` - Filesystem path (default: `/var/coreos`)
+- `FCOS_STREAM` - FCOS stream to download (default: `stable`)
+- `SKIP_IMAGE_DOWNLOAD` - Skip image download (default: `false`)
+
+No environment variables required for basic usage - fully automated with sensible defaults.
 
 ## 🚀 Quick Start
 

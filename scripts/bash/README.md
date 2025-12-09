@@ -45,13 +45,24 @@ bash/
 **Usage**:
 
 ```bash
+# Preview changes (dry-run)
+ssh root@proxmox-host 'bash -s -- --dry-run' < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
 # Run on Proxmox host
 ssh root@proxmox-host < scripts/bash/setup/proxmox_fcos_storage_setup.sh
 
 # Or copy and run locally
 scp scripts/bash/setup/proxmox_fcos_storage_setup.sh root@proxmox:/tmp/
 ssh root@proxmox "bash /tmp/proxmox_fcos_storage_setup.sh"
+
+# Get help
+ssh root@proxmox-host 'bash -s -- --help' < scripts/bash/setup/proxmox_fcos_storage_setup.sh
 ```
+
+**Options**:
+
+- `--dry-run, -n` - Preview changes without making them
+- `--help, -h` - Show usage information
 
 **Usage**:
 

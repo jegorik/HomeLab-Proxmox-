@@ -90,6 +90,10 @@ tofu output -raw ubuntu_vm_password
 
 ```bash
 # One-time setup on Proxmox host
+# (Optional) Preview changes first
+ssh root@proxmox-host 'bash -s -- --dry-run' < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
+# Run actual setup
 ssh root@proxmox-host < scripts/bash/setup/proxmox_fcos_storage_setup.sh
 
 cd terraform/fedora_core

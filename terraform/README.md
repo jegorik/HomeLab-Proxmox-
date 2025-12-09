@@ -77,6 +77,10 @@ tofu apply
 
 ```bash
 # One-time setup on Proxmox host
+# Preview changes first (recommended)
+ssh root@proxmox 'bash -s -- --dry-run' < ../scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
+# Run actual setup
 ssh root@proxmox < ../scripts/bash/setup/proxmox_fcos_storage_setup.sh
 
 cd fedora_core

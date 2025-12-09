@@ -54,14 +54,21 @@ Fedora CoreOS (FCOS) is an immutable, container-focused operating system designe
 3. **Storage Setup** (one-time setup):
 
    ```bash
+   # Preview changes first (recommended)
+   ssh root@proxmox-host 'bash -s -- --dry-run' < ../../scripts/bash/setup/proxmox_fcos_storage_setup.sh
+   
    # Run setup script on Proxmox host as root
    ssh root@proxmox-host < ../../scripts/bash/setup/proxmox_fcos_storage_setup.sh
+   
+   # Or get help
+   bash ../../scripts/bash/setup/proxmox_fcos_storage_setup.sh --help
    ```
 
    The setup script:
    - Creates `/var/coreos/{images,snippets}` directories
    - Registers `coreos` storage in Proxmox
    - Downloads FCOS image via `coreos-installer`
+   - Supports `--dry-run` to preview changes without making them
 
 ## 🎯 Quick Start
 
@@ -71,6 +78,10 @@ Run the storage setup script on your Proxmox host:
 
 ```bash
 # From repository root
+# Preview changes first (optional)
+ssh root@192.168.0.204 'bash -s -- --dry-run' < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
+# Run actual setup
 ssh root@192.168.0.204 < scripts/bash/setup/proxmox_fcos_storage_setup.sh
 ```
 
