@@ -81,14 +81,15 @@ get_latest_fcos_version() {
     local stream="$1"
     local metadata_url="https://builds.coreos.fedoraproject.org/streams/${stream}.json"
     
-    log_info "Fetching latest FCOS version for stream: ${stream}..."
+    # Log to stderr to not pollute stdout
+    log_info "Fetching latest FCOS version for stream: ${stream}..." >&2
     
     if command -v curl &> /dev/null; then
         curl -sS "$metadata_url" | grep -oP '"version":\s*"\K[^"]+' | head -1
     elif command -v wget &> /dev/null; then
         wget -qO- "$metadata_url" | grep -oP '"version":\s*"\K[^"]+' | head -1
     else
-        log_error "Neither curl nor wget found"
+        log_error "Neither curl nor wget found" >&2
         return 1
     fi
 }
