@@ -27,6 +27,12 @@ variable "proxmox_endpoint" {
   }
 }
 
+variable "schema_name" {
+  description = "Backend schema name for terraform state file storage"
+  type        = string
+  default     = "terraform_remote_state"
+}
+
 variable "proxmox_api_token" {
   description = "Proxmox API token in format: user@realm!token-name=token-value"
   type        = string

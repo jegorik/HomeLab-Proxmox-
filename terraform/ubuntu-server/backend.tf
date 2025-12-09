@@ -20,6 +20,6 @@ terraform {
     # or via -backend-config="conn_str=..." during init
     #
     # Schema name for state storage (optional, defaults to "terraform_remote_state")
-    schema_name = "terraform_remote_state"
+    schema_name = var.schema_name
   }
 }
