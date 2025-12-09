@@ -47,26 +47,28 @@ storage:
     # --------------------------------------------------------------------------
     # Static Network Configuration (NetworkManager keyfile)
     # --------------------------------------------------------------------------
-    - path: /etc/NetworkManager/system-connections/static-eth0.nmconnection
+    - path: /etc/NetworkManager/system-connections/eth0.nmconnection
       mode: 0600
+      overwrite: true
       contents:
         inline: |
           [connection]
-          id=static-eth0
+          id=eth0
           type=ethernet
-          interface-name=eth0
           autoconnect=true
+          autoconnect-priority=100
           
           [ethernet]
           
           [ipv4]
           method=manual
-          addresses=${ip_address}
-          gateway=${gateway}
-          dns=${join(";", dns_servers)}
+          address1=${ip_address},${gateway}
+          dns=${join(";", dns_servers)};
           
           [ipv6]
           method=disabled
+          
+          [proxy]
 %{ endif ~}
 
 # ==============================================================================
