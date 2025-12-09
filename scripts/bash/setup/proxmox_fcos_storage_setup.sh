@@ -84,13 +84,24 @@ get_latest_fcos_version() {
     # Log to stderr to not pollute stdout
     log_info "Fetching latest FCOS version for stream: ${stream}..." >&2
     
+    local json_data=""
     if command -v curl &> /dev/null; then
-        curl -sS "$metadata_url" | grep -oP '"version":\s*"\K[^"]+' | head -1
+        json_data=$(curl -sS "$metadata_url" 2>&1)
     elif command -v wget &> /dev/null; then
-        wget -qO- "$metadata_url" | grep -oP '"version":\s*"\K[^"]+' | head -1
+        json_data=$(wget -qO- "$metadata_url" 2>&1)
     else
         log_error "Neither curl nor wget found" >&2
         return 1
+    fi
+    
+    # Try jq first (most reliable)
+    if command -v jq &> /dev/null; then
+        echo "$json_data" | jq -r '.architectures.x86_64.artifacts.metal.release' 2>/dev/null || \
+        echo "$json_data" | jq -r '.architectures.x86_64.artifacts.proxmoxve.release' 2>/dev/null
+    else
+        # Fallback: parse JSON manually
+        # Look for "release":"43.20251110.3.1" pattern in the JSON
+        echo "$json_data" | grep -oP '"release"\s*:\s*"\K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1
     fi
 }
 
