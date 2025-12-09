@@ -14,6 +14,31 @@ Creates a dedicated Ansible automation user with:
 
 See [parent README](../README.md) for detailed usage.
 
+### proxmox_fcos_storage_setup.sh
+
+One-time setup for Fedora CoreOS deployment on Proxmox VE:
+
+- Creates `/var/coreos/{images,snippets}` directory structure
+- Registers `coreos` storage in Proxmox with images and snippets support
+- Downloads FCOS image using `coreos-installer` (or fallback to podman/docker)
+- Validates storage configuration
+
+**Usage:**
+
+```bash
+# Run directly on Proxmox host
+ssh root@proxmox-host
+bash /path/to/proxmox_fcos_storage_setup.sh
+
+# Or remotely via SSH
+ssh root@proxmox-host 'bash -s' < proxmox_fcos_storage_setup.sh
+
+# Or from repository root
+ssh root@proxmox-host < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+```
+
+No environment variables needed - fully automated.
+
 ## 🚀 Quick Start
 
 ```bash
@@ -35,8 +60,9 @@ ssh ansible@$TARGET "whoami && sudo whoami"
 
 | File | Purpose | Git Status |
 |------|---------|------------|
-| `ansible_user_setup.sh` | Main setup script | Tracked |
-| `.env.example` | Template for environment | Tracked |
+| `ansible_user_setup.sh` | Create Ansible user | Tracked |
+| `proxmox_fcos_storage_setup.sh` | Setup FCOS storage | Tracked |
+| `.env.example` | Template for ansible_user_setup.sh | Tracked |
 | `.env` | Your actual config | **Ignored** |
 
 ## ⚠️ Prerequisites

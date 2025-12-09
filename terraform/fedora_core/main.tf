@@ -1,12 +1,15 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║                     Fedora CoreOS VM - Main Configuration                  ║
 # ║                                                                            ║
-# ║  TWO-STAGE DEPLOYMENT APPROACH:                                            ║
-# ║  1. OpenTofu: Creates VM (stopped) + generates Ignition config file        ║
-# ║  2. Ansible:  Applies kvm_arguments with Ignition and starts VM            ║
+# ║  SINGLE-STAGE CLOUD-INIT DEPLOYMENT:                                       ║
+# ║  OpenTofu creates VM with Ignition config delivered via Proxmox Cloud-Init ║
 # ║                                                                            ║
-# ║  This approach avoids requiring root@pam password in OpenTofu.             ║
-# ║  Ansible uses sudo on Proxmox host to run qm commands.                     ║
+# ║  Based on official Fedora CoreOS documentation (December 2025):            ║
+# ║  https://docs.fedoraproject.org/en-US/fedora-coreos/provisioning-proxmoxve ║
+# ║                                                                            ║
+# ║  Prerequisites:                                                            ║
+# ║  - Run scripts/bash/setup/proxmox_fcos_storage_setup.sh on Proxmox host    ║
+# ║  - Creates /var/coreos storage with images and snippets directories        ║
 # ║                                                                            ║
 # ║  Author: jegorik                                                           ║
 # ║  Last Updated: December 2025                                               ║
@@ -21,20 +24,11 @@ locals {
   # Image Configuration
   # --------------------------------------------------------------------------
 
-  # Image filename - use provided or construct from version
+  # Image path on Proxmox host (in /var/coreos/images/)
   fcos_image_filename = var.fcos_image_filename != "" ? var.fcos_image_filename : "fedora-coreos-${var.fcos_version}-proxmoxve.x86_64.qcow2"
-
-  # Full path to local image on Proxmox host
-  fcos_image_local_full_path = "${var.fcos_image_local_path}/${local.fcos_image_filename}"
-
-  # Download URL (official images are .xz compressed)
-  fcos_image_download_url = var.fcos_image_download_url != "" ? var.fcos_image_download_url : "https://builds.coreos.fedoraproject.org/prod/streams/${var.fcos_stream}/builds/${var.fcos_version}/x86_64/${local.fcos_image_filename}.xz"
-
-  # Determine whether to use existing image or download new one
-  use_existing_image = var.fcos_existing_file_id != ""
-
-  # Final file_id for VM disk
-  fcos_file_id = local.use_existing_image ? var.fcos_existing_file_id : proxmox_virtual_environment_download_file.fcos_image[0].id
+  
+  # Full path for import-from parameter
+  fcos_image_path = "${var.coreos_storage_path}/images/${local.fcos_image_filename}"
 
   # --------------------------------------------------------------------------
   # SSH Keys
@@ -48,17 +42,17 @@ locals {
 
   # --------------------------------------------------------------------------
   # Ignition Configuration
-  # Commas must be escaped as ,, for QEMU fw_cfg argument
   # --------------------------------------------------------------------------
-  ignition_config_raw     = data.ct_config.vm_ignition.rendered
-  ignition_config_escaped = replace(local.ignition_config_raw, ",", ",,")
+  ignition_config_raw = data.ct_config.vm_ignition.rendered
+  
+  # Ignition filename for snippets storage
+  ignition_snippet_name = "${var.vm_name}.ign"
 
   # --------------------------------------------------------------------------
   # Output paths for generated files
   # --------------------------------------------------------------------------
   ignition_output_dir  = "${path.module}/generated"
-  ignition_output_file = "${local.ignition_output_dir}/${var.vm_name}-ignition.json"
-  ansible_vars_file    = "${local.ignition_output_dir}/${var.vm_name}-ansible-vars.yml"
+  ignition_output_file = "${local.ignition_output_dir}/${local.ignition_snippet_name}"
 }
 
 # ==============================================================================
@@ -105,27 +99,60 @@ resource "random_id" "vm_suffix" {
 }
 
 # ------------------------------------------------------------------------------
-# Download FCOS Image to Proxmox Storage (Optional)
-# Skipped if fcos_existing_file_id is provided.
+# Create output directory for generated files
 # ------------------------------------------------------------------------------
-resource "proxmox_virtual_environment_download_file" "fcos_image" {
-  count = var.create_vm && !local.use_existing_image ? 1 : 0
+resource "null_resource" "create_output_dir" {
+  count = var.create_vm ? 1 : 0
 
-  content_type = "iso"
-  datastore_id = var.proxmox_iso_storage
-  node_name    = var.proxmox_node
+  provisioner "local-exec" {
+    command = "mkdir -p ${local.ignition_output_dir}"
+  }
+}
 
-  url       = local.fcos_image_download_url
-  file_name = local.fcos_image_filename
-  overwrite = false
+# ------------------------------------------------------------------------------
+# Save Ignition JSON to local file
+# ------------------------------------------------------------------------------
+resource "local_file" "ignition_config" {
+  count = var.create_vm ? 1 : 0
+
+  content  = local.ignition_config_raw
+  filename = local.ignition_output_file
+
+  file_permission = "0600"
+
+  depends_on = [null_resource.create_output_dir]
+}
+
+# ------------------------------------------------------------------------------
+# Upload Ignition to Proxmox snippets storage
+# Uses SCP to transfer the file to /var/coreos/snippets/
+# ------------------------------------------------------------------------------
+resource "null_resource" "upload_ignition" {
+  count = var.create_vm ? 1 : 0
+
+  triggers = {
+    ignition_content = local.ignition_config_raw
+    vm_name          = var.vm_name
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOF
+      scp -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -i <(echo "${var.proxmox_ssh_private_key}") \
+          ${local.ignition_output_file} \
+          ${var.proxmox_ssh_user}@${var.proxmox_host}:${var.coreos_storage_path}/snippets/${local.ignition_snippet_name}
+    EOF
+  }
+
+  depends_on = [local_file.ignition_config]
 }
 
 # ------------------------------------------------------------------------------
 # Fedora CoreOS Virtual Machine
 # 
-# IMPORTANT: VM is created in STOPPED state without Ignition.
-# Use the generated Ansible playbook to apply Ignition and start the VM.
-# This avoids the need for root@pam password in OpenTofu.
+# Uses Cloud-Init to deliver Ignition configuration via vendor data.
+# VM starts automatically with Ignition applied on first boot.
 # ------------------------------------------------------------------------------
 resource "proxmox_virtual_environment_vm" "fcos" {
   count = var.create_vm ? 1 : 0
@@ -135,23 +162,15 @@ resource "proxmox_virtual_environment_vm" "fcos" {
   # --------------------------------------------------------------------------
   vm_id       = var.vm_id
   name        = var.vm_name
-  description = <<-EOT
-    ${var.vm_description}
-    
-    ---
-    IMPORTANT: This VM requires Ignition configuration.
-    Run the Ansible playbook to apply Ignition and start the VM:
-    
-    ansible-playbook -i inventory.yml apply_fcos_ignition.yml -e @generated/${var.vm_name}-ansible-vars.yml
-  EOT
+  description = var.vm_description
   tags        = local.vm_tags
   node_name   = var.proxmox_node
 
   # --------------------------------------------------------------------------
-  # VM Lifecycle - STOPPED by default (Ansible will start it)
+  # VM Lifecycle
   # --------------------------------------------------------------------------
   on_boot = var.vm_on_boot
-  started = false # VM created stopped - Ansible will start after applying Ignition
+  started = var.vm_started # VM starts automatically with Ignition
 
   protection = var.vm_protection
 
@@ -186,15 +205,17 @@ resource "proxmox_virtual_environment_vm" "fcos" {
   # Storage Configuration
   # --------------------------------------------------------------------------
   disk {
+    datastore_id = var.vm_storage_pool
     interface    = var.vm_disk_interface
     size         = parseint(replace(var.vm_disk_size, "/[GMT]/", ""), 10)
-    datastore_id = var.vm_storage_pool
-    file_format  = "raw"
-    file_id      = local.fcos_file_id
-    discard      = var.vm_disk_discard ? "on" : "ignore"
     ssd          = var.vm_disk_ssd_emulation
+    discard      = var.vm_disk_discard ? "on" : "ignore"
     iothread     = var.vm_disk_iothread
     cache        = "none"
+    
+    # Import FCOS image from coreos storage
+    file_format = "qcow2"
+    import_from = local.fcos_image_path
   }
 
   # --------------------------------------------------------------------------
@@ -229,96 +250,19 @@ resource "proxmox_virtual_environment_vm" "fcos" {
   }
 
   # --------------------------------------------------------------------------
-  # Boot Configuration
+  # Cloud-Init Configuration
+  # Delivers Ignition config via vendor data (official Proxmox method)
   # --------------------------------------------------------------------------
-  boot_order = [var.vm_boot_order]
-
-  # --------------------------------------------------------------------------
-  # NO kvm_arguments here - Ansible will apply them
-  # --------------------------------------------------------------------------
-
-  operating_system {
-    type = "l26"
+  initialization {
+    vendor_data_file_id = "${var.coreos_storage}:snippets/${local.ignition_snippet_name}"
   }
 
-  lifecycle {
-    ignore_changes = [
-      disk[0].file_id,
-      description, # Description includes dynamic instructions
-    ]
-  }
+  # VM depends on Ignition file being uploaded to Proxmox
+  depends_on = [null_resource.upload_ignition]
 }
 
 # ==============================================================================
-# GENERATED FILES FOR ANSIBLE
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
-# Create output directory for generated files
-# ------------------------------------------------------------------------------
-resource "null_resource" "create_output_dir" {
-  count = var.create_vm ? 1 : 0
-
-  provisioner "local-exec" {
-    command = "mkdir -p ${local.ignition_output_dir}"
-  }
-}
-
-# ------------------------------------------------------------------------------
-# Save Ignition JSON to file
-# This file will be used by Ansible to configure the VM
-# ------------------------------------------------------------------------------
-resource "local_file" "ignition_config" {
-  count = var.create_vm ? 1 : 0
-
-  content  = local.ignition_config_raw
-  filename = local.ignition_output_file
-
-  file_permission = "0600"
-
-  depends_on = [null_resource.create_output_dir]
-}
-
-# ------------------------------------------------------------------------------
-# Generate Ansible variables file
-# Contains all necessary info for the Ansible playbook
-# ------------------------------------------------------------------------------
-resource "local_file" "ansible_vars" {
-  count = var.create_vm ? 1 : 0
-
-  content = yamlencode({
-    # VM identification
-    vm_id        = proxmox_virtual_environment_vm.fcos[0].vm_id
-    vm_name      = var.vm_name
-    proxmox_node = var.proxmox_node
-
-    # Ignition configuration (escaped for qm args)
-    ignition_config_escaped = local.ignition_config_escaped
-
-    # Path to raw Ignition JSON (for reference/debugging)
-    ignition_json_file = local.ignition_output_file
-
-    # Network info for verification
-    vm_ip_address = var.vm_ip_address != "" ? split("/", var.vm_ip_address)[0] : "dhcp"
-    ssh_user      = var.ssh_user
-
-    # Control flags
-    start_vm_after_ignition = var.vm_started
-    wait_for_ssh            = var.vm_started
-    ssh_timeout             = "300"
-  })
-
-  filename        = local.ansible_vars_file
-  file_permission = "0600"
-
-  depends_on = [
-    null_resource.create_output_dir,
-    proxmox_virtual_environment_vm.fcos
-  ]
-}
-
-# ==============================================================================
-# OUTPUT INSTRUCTIONS
+# DEPLOYMENT INSTRUCTIONS
 # ==============================================================================
 
 resource "null_resource" "deployment_instructions" {
@@ -332,25 +276,23 @@ resource "null_resource" "deployment_instructions" {
     command = <<-EOF
       echo ""
       echo "========================================================================"
-      echo "       FEDORA COREOS VM CREATED SUCCESSFULLY"
+      echo "       FEDORA COREOS VM DEPLOYED SUCCESSFULLY"
       echo "========================================================================"
-      echo "  VM ID: ${proxmox_virtual_environment_vm.fcos[0].vm_id}"
-      echo "  Name:  ${var.vm_name}"
-      echo "  Node:  ${var.proxmox_node}"
-      echo "  State: STOPPED - awaiting Ignition configuration"
+      echo "  VM ID:   ${proxmox_virtual_environment_vm.fcos[0].vm_id}"
+      echo "  Name:    ${var.vm_name}"
+      echo "  Node:    ${var.proxmox_node}"
+      echo "  Status:  ${var.vm_started ? "STARTING" : "STOPPED"}"
       echo "========================================================================"
-      echo "  NEXT STEP: Run Ansible playbook to apply Ignition and start VM"
-      echo "========================================================================"
-      echo "  ansible-playbook -i inventory.yml apply_fcos_ignition.yml \\"
-      echo "    -e @${local.ansible_vars_file}"
+      echo "  Ignition config applied via Cloud-Init vendor data"
+      echo "  Location: ${var.coreos_storage}:snippets/${local.ignition_snippet_name}"
       echo "========================================================================"
       echo ""
     EOF
   }
 
   depends_on = [
-    local_file.ignition_config,
-    local_file.ansible_vars
+    proxmox_virtual_environment_vm.fcos,
+    local_file.ignition_config
   ]
 }
 

@@ -66,23 +66,27 @@ tofu apply
 **Features**:
 
 - Immutable OS for containers (Podman/Docker)
-- Ignition configuration (not cloud-init)
+- Ignition configuration delivered via Cloud-Init
 - Butane YAML templates
-- Two-stage deployment (OpenTofu + Ansible)
+- Single-stage deployment (OpenTofu only)
+- One-time setup script for Proxmox storage
+- Native Proxmox Cloud-Init support
 - QEMU Guest Agent via rpm-ostree
 
 **Quick Start**:
 
 ```bash
+# One-time setup on Proxmox host
+ssh root@proxmox < ../scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
 cd fedora_core
 cp terraform.tfvars.example terraform.tfvars
-nano terraform.tfvars  # Add SSH key, credentials
+nano terraform.tfvars  # Add SSH key, credentials, Proxmox host
 tofu init
-tofu apply  # Creates VM (stopped)
+tofu apply  # VM deploys with Ignition applied automatically
 
-# Apply Ignition via Ansible
-ansible-playbook ../../scripts/ansible/playbooks/proxmox/apply_fcos_ignition.yml \
-  -e @generated/<vm-name>-ansible-vars.yml
+# Access VM
+ssh core@<vm-ip>
 ```
 
 ## 🔧 Common Configuration

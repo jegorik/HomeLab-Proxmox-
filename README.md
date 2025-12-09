@@ -35,9 +35,10 @@ examples and find concise guidance for each component.
     - Security hardening and SSH key authentication
   - [`fedora_core/`](terraform/fedora_core/) — Fedora CoreOS VM for container workloads.
     - Immutable OS designed for containerized applications (Podman/Docker)
-    - **Ignition configuration** via Butane YAML templates (not cloud-init)
+    - **Single-stage Cloud-Init deployment** with native Ignition support
     - Uses `poseidon/ct` provider for Butane → Ignition transpilation
-    - QEMU Guest Agent installation via rpm-ostree
+    - Dedicated coreos storage for images and snippets
+    - One-time setup script: `scripts/bash/setup/proxmox_fcos_storage_setup.sh`
     - SSH key-only authentication (no passwords)
     - Static IP or DHCP network configuration
 
@@ -45,8 +46,6 @@ examples and find concise guidance for each component.
 
 - [`scripts/`](scripts/) — Shell scripts and Ansible playbooks for host provisioning and automation.
   - [`ansible/`](scripts/ansible/) — Ansible configurations and playbooks.
-    - [`playbooks/proxmox/`](scripts/ansible/playbooks/proxmox/) — Proxmox host management
-      - `apply_fcos_ignition.yml` — Apply Ignition config to Fedora CoreOS VMs
     - [`playbooks/maintenance/`](scripts/ansible/playbooks/maintenance/) — System maintenance
       - `update_packages.yml` — Multi-distro package updates (Debian, RHEL, SUSE)
     - [`playbooks/debug/`](scripts/ansible/playbooks/debug/) — Testing & debugging
@@ -56,6 +55,10 @@ examples and find concise guidance for each component.
       - Creates automation user with SSH key authentication
       - Configures passwordless sudo for Ansible/Semaphore
       - Supports Debian/Ubuntu and RHEL/CentOS systems
+    - [`setup/proxmox_fcos_storage_setup.sh`](scripts/bash/setup/proxmox_fcos_storage_setup.sh) — Fedora CoreOS storage setup
+      - One-time setup for FCOS deployment on Proxmox
+      - Creates /var/coreos storage with images and snippets
+      - Downloads FCOS image via coreos-installer
 
 ## How to use
 
@@ -86,6 +89,9 @@ tofu output -raw ubuntu_vm_password
 **Fedora CoreOS deployment:**
 
 ```bash
+# One-time setup on Proxmox host
+ssh root@proxmox-host < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
 cd terraform/fedora_core
 
 # Copy and configure variables
@@ -95,26 +101,22 @@ nano terraform.tfvars  # Add your SSH key and Proxmox credentials
 # Initialize providers (includes poseidon/ct for Butane)
 tofu init
 
-# Preview VM creation
-tofu plan
-
-# Deploy Fedora CoreOS VM
+# Deploy VM (starts automatically with Ignition applied)
 tofu apply
 
-# Get SSH connection command
-tofu output ssh_connection_command
+# Access VM
+ssh core@<vm-ip>
 ```
 
-> **Note:** Fedora CoreOS uses Ignition (not cloud-init). The `kvm_arguments`
-> feature for Ignition injection requires `root@pam` password authentication —
-> API tokens alone are insufficient.
+> **Note:** Fedora CoreOS uses Ignition delivered via Proxmox Cloud-Init vendor data.
+> This eliminates the need for complex kvm_arguments or Ansible post-provisioning.
 
 **Prerequisites:**
 
 - Proxmox VE API token with appropriate permissions
 - PostgreSQL database for state storage (or modify backend.tf for local state)
 - SSH key pair for VM access
-- For Fedora CoreOS: root@pam password for Ignition injection
+- SSH access to Proxmox host (for Ignition upload)
 
 ### Scripts
 

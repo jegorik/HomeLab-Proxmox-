@@ -60,7 +60,6 @@ ssh root@newhost "bash /tmp/ansible_user_setup.sh /tmp/.env"
 
 | Category | Playbook | Description |
 |----------|----------|-------------|
-| proxmox | `apply_fcos_ignition.yml` | Apply Ignition to Fedora CoreOS VM |
 | maintenance | `update_packages.yml` | Update packages (multi-distro) |
 | debug | `test_connection.yml` | Test SSH connectivity |
 
@@ -69,6 +68,7 @@ ssh root@newhost "bash /tmp/ansible_user_setup.sh /tmp/.env"
 | Category | Script | Description |
 |----------|--------|-------------|
 | setup | `ansible_user_setup.sh` | Create Ansible user on hosts |
+| setup | `proxmox_fcos_storage_setup.sh` | Setup FCOS storage on Proxmox |
 
 ## 🔌 Integration
 
@@ -82,13 +82,13 @@ All scripts designed for Semaphore UI integration:
 
 ### OpenTofu / Terraform
 
-Some playbooks work with OpenTofu outputs:
+Scripts designed for infrastructure automation:
 
 ```bash
 # Example: Fedora CoreOS deployment
-tofu -chdir=terraform/fedora_core apply
-ansible-playbook scripts/ansible/playbooks/proxmox/apply_fcos_ignition.yml \
-  -e @terraform/fedora_core/generated/vm-ansible-vars.yml
+cd terraform/fedora_core
+tofu apply
+# VM deploys with Ignition applied via Cloud-Init
 ```
 
 ## 📝 Contributing

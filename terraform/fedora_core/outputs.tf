@@ -2,6 +2,7 @@
 # ║                     Fedora CoreOS VM - Outputs                             ║
 # ║                                                                            ║
 # ║  Output values for the provisioned Fedora CoreOS VM                        ║
+# ║  Single-stage Cloud-Init deployment with Ignition                          ║
 # ║                                                                            ║
 # ║  Author: jegorik                                                           ║
 # ║  Last Updated: December 2025                                               ║
@@ -132,14 +133,20 @@ output "ignition_config_hash" {
 
 output "ignition_file_path" {
   description = <<-EOT
-    Path to the generated Ignition JSON file.
-    This file is used by the Ansible playbook to apply Ignition config.
-    
-    Use this output when running the Ansible playbook:
-      ansible-playbook apply_fcos_ignition.yml \
-        -e "ignition_file_path=$(tofu output -raw ignition_file_path)"
+    Path to the generated Ignition JSON file on local machine.
+    This file is also uploaded to Proxmox snippets storage.
   EOT
   value       = var.create_vm ? local_file.ignition_config[0].filename : null
+}
+
+output "ignition_file_location" {
+  description = <<-EOT
+    Location of Ignition config in Proxmox storage.
+    Format: <storage>:snippets/<filename>
+    
+    The VM uses this via Cloud-Init vendor data.
+  EOT
+  value       = var.create_vm ? "${var.coreos_storage}:snippets/${local.ignition_snippet_name}" : null
 }
 
 # ==============================================================================
@@ -155,17 +162,10 @@ output "fcos_image_filename" {
 
 output "fcos_image_path" {
   description = <<-EOT
-    Full path to the Fedora CoreOS image on Proxmox host.
+    Path to the Fedora CoreOS image in Proxmox coreos storage.
+    Format: /var/coreos/images/<filename>
   EOT
-  value       = local.fcos_image_local_full_path
-}
-
-output "fcos_image_download_url" {
-  description = <<-EOT
-    URL for downloading the Fedora CoreOS image.
-    Use this if you need to manually download the image.
-  EOT
-  value       = local.fcos_image_download_url
+  value       = local.fcos_image_path
 }
 
 # ==============================================================================
@@ -233,57 +233,12 @@ output "proxmox_vm_api_path" {
 }
 
 # ==============================================================================
-# ANSIBLE INTEGRATION OUTPUTS
-# ==============================================================================
-
-output "ansible_playbook_command" {
-  description = <<-EOT
-    Complete Ansible command to apply Ignition config and start the VM.
-    Copy and run this command after 'tofu apply' completes.
-    
-    Prerequisites:
-    - Ansible installed on your local machine or Proxmox host
-    - SSH access to Proxmox host with sudo privileges
-    - The apply_fcos_ignition.yml playbook in your playbooks directory
-  EOT
-  value = var.create_vm ? join("\n", [
-    "# Run this command to apply Ignition and start the VM:",
-    "ansible-playbook ../../scripts/ansible_playbooks/apply_fcos_ignition.yml \\",
-    "  -i \"${replace(var.proxmox_api_url, "https://", "")},\" \\",
-    "  -e \"vm_id=${proxmox_virtual_environment_vm.fcos[0].vm_id}\" \\",
-    "  -e \"proxmox_node=${var.proxmox_node}\" \\",
-    "  -e \"ignition_file_path=${abspath(local_file.ignition_config[0].filename)}\" \\",
-    "  -e \"ansible_user=ansible\" \\",
-    "  -e \"ansible_become=yes\""
-  ]) : null
-}
-
-output "ansible_extra_vars" {
-  description = <<-EOT
-    JSON-formatted extra variables for Ansible playbook.
-    Useful for programmatic integration with Ansible.
-    
-    Usage:
-      ansible-playbook apply_fcos_ignition.yml \
-        -e '@<(tofu output -json ansible_extra_vars)'
-  EOT
-  value = var.create_vm ? jsonencode({
-    vm_id              = proxmox_virtual_environment_vm.fcos[0].vm_id
-    proxmox_node       = var.proxmox_node
-    ignition_file_path = abspath(local_file.ignition_config[0].filename)
-    vm_name            = var.vm_name
-    ssh_user           = var.ssh_user
-    expected_ip        = var.vm_ip_address != "" ? split("/", var.vm_ip_address)[0] : ""
-  }) : null
-}
-
-# ==============================================================================
 # DEPLOYMENT WORKFLOW SUMMARY
 # ==============================================================================
 
 output "deployment_workflow" {
-  description = "Summary of the two-stage deployment workflow. Follow these steps to complete VM provisioning."
-  value       = var.create_vm ? "Stage 1 COMPLETE: VM ${var.vm_name} created (ID: ${proxmox_virtual_environment_vm.fcos[0].vm_id}). Run Ansible playbook to apply Ignition and start VM. See ansible_playbook_command output for details." : null
+  description = "Summary of the single-stage deployment workflow."
+  value       = var.create_vm ? "VM ${var.vm_name} (ID: ${proxmox_virtual_environment_vm.fcos[0].vm_id}) deployed successfully with Ignition applied via Cloud-Init. ${var.vm_started ? "VM is starting - SSH access will be available shortly." : "VM is stopped - start it manually if needed."}" : null
 }
 
 # ==============================================================================

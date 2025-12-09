@@ -15,7 +15,6 @@ ansible/
 │   └── all.yml.example      # Variables for all hosts
 │
 ├── playbooks/               # Playbooks organized by category
-│   ├── proxmox/             # Proxmox host management
 │   ├── maintenance/         # System maintenance tasks
 │   └── debug/               # Debugging and testing
 │
@@ -48,9 +47,11 @@ ansible-playbook playbooks/debug/test_connection.yml
 
 | Category | Playbook | Description |
 |----------|----------|-------------|
-| **proxmox** | `apply_fcos_ignition.yml` | Apply Ignition config to Fedora CoreOS VM |
 | **maintenance** | `update_packages.yml` | Update packages on all systems |
 | **debug** | `test_connection.yml` | Test SSH connectivity to hosts |
+
+> **Note**: Fedora CoreOS Ignition is now handled directly by OpenTofu via Cloud-Init.
+> The deprecated `apply_fcos_ignition.yml` playbook has been removed.
 
 ## 🔧 Configuration
 
@@ -89,10 +90,9 @@ All playbooks are designed for Semaphore UI:
 ### Example Task Templates
 
 | Task Name | Playbook Path |
-|-----------|---------------|
+|-----------|--------------|
 | Update All Systems | `scripts/ansible/playbooks/maintenance/update_packages.yml` |
 | Test Connectivity | `scripts/ansible/playbooks/debug/test_connection.yml` |
-| Apply FCOS Ignition | `scripts/ansible/playbooks/proxmox/apply_fcos_ignition.yml` |
 
 ## 📝 Adding New Playbooks
 

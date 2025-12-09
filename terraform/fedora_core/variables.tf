@@ -179,65 +179,49 @@ variable "fcos_image_filename" {
   default     = ""
 }
 
-variable "fcos_image_local_path" {
+variable "coreos_storage" {
   description = <<-EOT
-    Local path where FCOS image is already downloaded on Proxmox host.
-    If the image exists at this path, it will be used directly.
-    If not found, the image will be downloaded from the official source.
-    Example: /var/lib/vz/import
+    Proxmox storage ID for Fedora CoreOS resources.
+    This should be the storage created by setup script: 'coreos'
+    
+    The storage must be registered in Proxmox with:
+      pvesm add dir coreos --path /var/coreos --content images,snippets
+    
+    Used for:
+    - images: FCOS qcow2 image (/var/coreos/images/)
+    - snippets: Ignition configs (/var/coreos/snippets/)
   EOT
   type        = string
-  default     = "/var/lib/vz/import"
+  default     = "coreos"
 }
 
-variable "fcos_image_download_url" {
+variable "coreos_storage_path" {
   description = <<-EOT
-    URL to download Fedora CoreOS QCOW2 image if not found locally.
-    If empty, will be constructed from stream and version.
-    Leave empty to use official Fedora mirrors.
-    
-    NOTE: Official FCOS images are compressed (.qcow2.xz).
-    For pre-downloaded/decompressed images, use fcos_existing_file_id.
+    Filesystem path on Proxmox host for coreos storage.
+    This should match the path registered in Proxmox storage.
+    Created by scripts/bash/setup/proxmox_fcos_storage_setup.sh
   EOT
   type        = string
-  default     = ""
+  default     = "/var/coreos"
 }
 
-variable "fcos_existing_file_id" {
+variable "proxmox_host" {
   description = <<-EOT
-    Use an existing qcow2 image already present in Proxmox storage.
-    
-    IMPORTANT: For disk import, the format must be:
-      <storage>:import/<filename>
-    
-    Example: "local:import/fedora-coreos-43.20251110.3.1-proxmoxve.x86_64.qcow2"
-    
-    The file must be located in the 'import' directory of the storage:
-      /var/lib/vz/import/<filename>
-    
-    NOT in iso directory! Move the file if needed:
-      mv /var/lib/vz/template/iso/<file>.qcow2 /var/lib/vz/import/
-    
-    If set, skips downloading and uses this file directly.
-    This is useful when:
-    - Image was pre-downloaded and decompressed manually
-    - Using a custom/modified image
-    - Avoiding repeated downloads
-    
-    NOTE: The image must already exist in the import directory.
+    Proxmox host IP address or hostname for SCP transfers.
+    Used to upload Ignition config to snippets directory.
+    Example: 192.168.0.204
   EOT
   type        = string
-  default     = ""
 }
 
-variable "proxmox_iso_storage" {
+variable "proxmox_ssh_user" {
   description = <<-EOT
-    Proxmox storage ID for storing the FCOS image.
-    This storage must support ISO/images (typically 'local' or 'local-lvm').
-    The image will be uploaded here for VM disk creation.
+    SSH username for SCP transfers to Proxmox host.
+    This user must have write permissions to coreos storage path.
+    Typically 'ansible' user with sudo privileges.
   EOT
   type        = string
-  default     = "local"
+  default     = "ansible"
 }
 
 # ==============================================================================
@@ -512,7 +496,7 @@ variable "ssh_public_key" {
   sensitive   = true
 
   validation {
-    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", file(var.ssh_public_key)))
+    condition     = can(regex("^ssh-(rsa|ed25519|ecdsa)", var.ssh_public_key))
     error_message = "SSH public key must start with ssh-rsa, ssh-ed25519, or ssh-ecdsa."
   }
 }

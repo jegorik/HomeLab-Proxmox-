@@ -5,16 +5,10 @@
 # Copy this file to terraform.tfvars and fill in your values.
 # NEVER commit terraform.tfvars with real credentials to version control!
 #
-# Two-Stage Deployment:
-#   1. tofu apply          → Creates VM (stopped) + ignition.json
-#   2. ansible-playbook    → Applies Ignition via sudo, starts VM
-#
-# Usage:
-#   cp terraform.tfvars.example terraform.tfvars
-#   # Edit terraform.tfvars with your values
-#   tofu plan
-#   tofu apply
-#   # Then run Ansible playbook (see outputs)
+# Single-Stage Cloud-Init Deployment:
+#   1. Setup storage (one-time): ssh root@proxmox < ../../scripts/bash/setup/proxmox_fcos_storage_setup.sh
+#   2. tofu apply              → Creates VM with Ignition applied automatically
+#   3. ssh core@<vm_ip>        → Access VM
 #
 # ==============================================================================
 
@@ -22,139 +16,124 @@
 # PROXMOX CONNECTION (REQUIRED)
 # ==============================================================================
 
-# Proxmox API URL (required)
-# Format: https://<ip-or-hostname>:8006
+# Proxmox API URL
 proxmox_api_url = "https://192.168.0.204:8006"
 
-# Proxmox API token (required)
-# Format: <user>@<realm>!<token_name>=<token_secret>
-# Create token: Datacenter → Permissions → API Tokens → Add
+# Proxmox API token
+# Create: Datacenter → Permissions → API Tokens → Add
 proxmox_api_token = "terraform@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
-# Proxmox node name (default: pve)
+# Proxmox host IP/hostname (for SCP uploads)
+proxmox_host = "192.168.0.204"
+
+# SSH private key for Proxmox host access (for Ignition upload)
+# Can be file path or key content
+proxmox_ssh_private_key = file("~/.ssh/ansible_proxmox")
+# Or: proxmox_ssh_private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+
+# Proxmox node name
 proxmox_node = "pve"
 
-# Skip TLS certificate verification (default: true for self-signed certs)
+# Skip TLS certificate verification
 proxmox_insecure = true
 
 # ==============================================================================
 # VM IDENTIFICATION
 # ==============================================================================
 
-# VM ID (optional, null for auto-assignment)
-# vm_id = 200
+# VM ID (null for auto-assignment)
+vm_id = 118
 
 # VM name and hostname
-vm_name = "fcos-vm-01"
+vm_name = "fcos-test"
 
-# VM description (supports HTML)
-vm_description = "Fedora CoreOS container host - Managed by OpenTofu"
+# VM description
+vm_description = "Fedora CoreOS test VM"
 
-# Tags for organization
-vm_tags = ["fedora-coreos", "container-host", "production"]
+# VM tags (lowercase, no spaces)
+vm_tags = ["fcos", "container", "test"]
 
 # ==============================================================================
-# FEDORA COREOS IMAGE
+# FEDORA COREOS VERSION
 # ==============================================================================
 
-# Update stream: stable, testing, next
+# FCOS stream (stable, testing, next)
 fcos_stream = "stable"
 
-# FCOS version (check: https://fedoraproject.org/coreos/download)
+# FCOS version (check https://fedoraproject.org/coreos/download/)
 fcos_version = "43.20251110.3.1"
 
-# Local path where image is downloaded (on Proxmox host)
-fcos_image_local_path = "/var/lib/vz/import"
-
-# Storage for images
-proxmox_iso_storage = "local"
+# Coreos storage name (created by setup script)
+coreos_storage = "coreos"
 
 # ==============================================================================
-# VM HARDWARE RESOURCES
+# VM HARDWARE
 # ==============================================================================
 
-# CPU configuration
+# CPU
 vm_cpu_cores   = 2
 vm_cpu_sockets = 1
 vm_cpu_type    = "host"
 
-# Memory in MB (4096 = 4GB)
-vm_memory = 4096
+# Memory (MB)
+vm_memory         = 4096
+vm_balloon_memory = 2048
 
-# Disk size (32G recommended for container images)
-vm_disk_size = "32G"
-
-# Storage pool for VM disks
+# Disk
+vm_disk_size   = "20G"
 vm_storage_pool = "local-lvm"
 
 # ==============================================================================
-# NETWORK CONFIGURATION
+# NETWORK
 # ==============================================================================
 
-# Network bridge
+# Static IP (recommended)
+vm_ip_address  = "192.168.0.118/24"
+vm_gateway     = "192.168.0.1"
+vm_dns_servers = ["192.168.0.1", "8.8.8.8"]
+
+# Or DHCP (leave empty)
+# vm_ip_address = ""
+
+# Network settings
 vm_network_bridge = "vmbr0"
-
-# Network model (virtio recommended)
-vm_network_model = "virtio"
-
-# VLAN tag (null for no VLAN)
-# vm_network_vlan = 100
-
-# Static IP (CIDR notation) or leave empty for DHCP
-# vm_ip_address = "192.168.0.50/24"
-# vm_gateway = "192.168.0.1"
-# vm_dns_servers = ["8.8.8.8", "1.1.1.1"]
+vm_network_vlan   = 0
 
 # ==============================================================================
-# SSH & USER CONFIGURATION (REQUIRED)
+# SSH ACCESS
 # ==============================================================================
 
-# SSH username (default: core)
+# SSH user (default: core)
 ssh_user = "core"
 
-# SSH public key (REQUIRED - only way to access FCOS)
-ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... your-key-here"
+# SSH public key (required)
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExamplePublicKey user@host"
 
 # Additional SSH keys (optional)
 # ssh_public_keys_additional = [
-#   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... another-key",
-#   "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB... rsa-key"
+#   "ssh-ed25519 AAAAC3... user2@host",
+#   "ssh-rsa AAAAB3... user3@host"
 # ]
 
 # ==============================================================================
-# IGNITION CONFIGURATION
+# VM BEHAVIOR
 # ==============================================================================
 
-# Timezone (TZ database format)
-timezone = "UTC"
+# Auto-start VM after creation
+vm_started = true
 
-# Install QEMU guest agent (recommended)
-enable_qemu_guest_agent = true
-
-# Output directory for generated Ignition JSON
-# This file is used by Ansible playbook
-ignition_output_path = "./output"
-
-# ==============================================================================
-# VM LIFECYCLE
-# ==============================================================================
-
-# Auto-start on Proxmox boot
+# Auto-start VM on Proxmox boot
 vm_on_boot = true
 
-# Start VM after creation
-# NOTE: With two-stage deployment, set to false - Ansible will start VM
-vm_started = false
-
-# Protection against accidental deletion
+# Protection from accidental deletion
 vm_protection = false
 
 # ==============================================================================
-# DEPLOYMENT CONTROL
+# FEATURES
 # ==============================================================================
 
-# Set to false to plan without creating
-create_vm = true
+# QEMU Guest Agent (recommended)
+enable_qemu_guest_agent = true
 
-# Provisioning timeout in seconds
-provision_timeout = 600
+# Timezone
+timezone = "UTC"

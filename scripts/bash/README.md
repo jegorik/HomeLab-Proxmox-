@@ -6,10 +6,11 @@ Shell scripts for system setup and automation tasks.
 
 ```text
 bash/
-├── setup/                   # Initial setup scripts
-│   ├── ansible_user_setup.sh   # Create Ansible automation user
-│   ├── .env.example            # Example environment variables
-│   └── .env                    # Your environment (gitignored)
+├── setup/                          # Initial setup scripts
+│   ├── ansible_user_setup.sh       # Create Ansible automation user
+│   ├── proxmox_fcos_storage_setup.sh # Setup FCOS storage on Proxmox
+│   ├── .env.example                # Example environment variables
+│   └── .env                        # Your environment (gitignored)
 │
 └── (future categories...)
 ```
@@ -27,6 +28,30 @@ bash/
 - Supports Debian/Ubuntu and RHEL/CentOS
 - Idempotent - safe to run multiple times
 - Validates configuration after setup
+
+### setup/proxmox_fcos_storage_setup.sh
+
+**Purpose**: One-time setup for Fedora CoreOS deployment on Proxmox VE.
+
+**Features**:
+
+- Creates `/var/coreos/{images,snippets}` directory structure
+- Registers `coreos` storage in Proxmox (`pvesm add dir`)
+- Downloads FCOS image via `coreos-installer` (with podman/docker fallback)
+- Validates storage configuration
+- Color-coded output and comprehensive error handling
+- No configuration needed - fully automated
+
+**Usage**:
+
+```bash
+# Run on Proxmox host
+ssh root@proxmox-host < scripts/bash/setup/proxmox_fcos_storage_setup.sh
+
+# Or copy and run locally
+scp scripts/bash/setup/proxmox_fcos_storage_setup.sh root@proxmox:/tmp/
+ssh root@proxmox "bash /tmp/proxmox_fcos_storage_setup.sh"
+```
 
 **Usage**:
 
