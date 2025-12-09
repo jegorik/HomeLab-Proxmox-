@@ -90,7 +90,7 @@ resource "proxmox_virtual_environment_vm" "ubuntu_vm" {
 
     # User account with SSH key authentication (primary) and password (backup)
     user_account {
-      keys     = [trimspace(file(var.ssh_key_path))]
+      keys     = [trimspace(var.ssh_key_path)]
       password = random_password.ubuntu_vm_password.result
       username = var.vm_user_account_username
     }
