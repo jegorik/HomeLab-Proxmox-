@@ -39,18 +39,9 @@ storage:
     # --------------------------------------------------------------------------
     - path: /etc/hostname
       mode: 0644
-      contents:
-        inline: ${hostname}
-
-    # --------------------------------------------------------------------------
-    # Timezone Configuration
-    # --------------------------------------------------------------------------
-    - path: /etc/localtime
       overwrite: true
       contents:
-        source: https://raw.githubusercontent.com/eggert/tz/main/${timezone}
-      # Note: This is a symlink approach; CoreOS handles timezone via timedatectl
-      # The systemd unit below sets timezone properly
+        inline: ${hostname}
 
 %{ if ip_address != "" ~}
     # --------------------------------------------------------------------------

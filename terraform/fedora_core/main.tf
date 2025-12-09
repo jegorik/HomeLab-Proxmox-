@@ -24,10 +24,10 @@ locals {
   # Image Configuration
   # --------------------------------------------------------------------------
 
-  # Image path on Proxmox host (in /var/coreos/images/)
+  # Image filename for FCOS qcow2 image
   fcos_image_filename = var.fcos_image_filename != "" ? var.fcos_image_filename : "fedora-coreos-${var.fcos_version}-proxmoxve.x86_64.qcow2"
   
-  # Full path for import-from parameter
+  # Full path to image file on Proxmox host
   fcos_image_path = "${var.coreos_storage_path}/images/${local.fcos_image_filename}"
 
   # --------------------------------------------------------------------------
@@ -44,7 +44,7 @@ locals {
   # Ignition Configuration
   # --------------------------------------------------------------------------
   ignition_config_raw = data.ct_config.vm_ignition.rendered
-  
+
   # Ignition filename for snippets storage
   ignition_snippet_name = "${var.vm_name}.ign"
 
@@ -62,6 +62,10 @@ locals {
 # ------------------------------------------------------------------------------
 # Butane to Ignition Transpilation
 # ------------------------------------------------------------------------------
+# ==============================================================================
+# IGNITION CONFIGURATION
+# ==============================================================================
+
 data "ct_config" "vm_ignition" {
   content = templatefile("${path.module}/${var.butane_template_path}", {
     # System identity
@@ -137,11 +141,29 @@ resource "null_resource" "upload_ignition" {
 
   provisioner "local-exec" {
     command = <<-EOF
+      # Create temporary key file
+      TEMP_KEY=$(mktemp)
+      trap "rm -f $TEMP_KEY" EXIT
+      
+      # Write key to temp file
+      echo '${file(var.proxmox_ssh_private_key)}' > $TEMP_KEY
+      chmod 600 $TEMP_KEY
+      
+      # Upload to temporary location, then move with sudo
+      TEMP_REMOTE=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $TEMP_KEY ${var.proxmox_ssh_user}@${var.proxmox_host} 'mktemp')
+      
       scp -o StrictHostKeyChecking=no \
           -o UserKnownHostsFile=/dev/null \
-          -i <(echo "${var.proxmox_ssh_private_key}") \
+          -i $TEMP_KEY \
           ${local.ignition_output_file} \
-          ${var.proxmox_ssh_user}@${var.proxmox_host}:${var.coreos_storage_path}/snippets/${local.ignition_snippet_name}
+          ${var.proxmox_ssh_user}@${var.proxmox_host}:$TEMP_REMOTE
+      
+      # Move file with sudo
+      ssh -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -i $TEMP_KEY \
+          ${var.proxmox_ssh_user}@${var.proxmox_host} \
+          "sudo mv $TEMP_REMOTE ${var.coreos_storage_path}/snippets/${local.ignition_snippet_name} && sudo chmod 644 ${var.coreos_storage_path}/snippets/${local.ignition_snippet_name}"
     EOF
   }
 
@@ -170,7 +192,7 @@ resource "proxmox_virtual_environment_vm" "fcos" {
   # VM Lifecycle
   # --------------------------------------------------------------------------
   on_boot = var.vm_on_boot
-  started = var.vm_started # VM starts automatically with Ignition
+  started = false # Don't start yet - disk needs to be imported first
 
   protection = var.vm_protection
 
@@ -180,6 +202,11 @@ resource "proxmox_virtual_environment_vm" "fcos" {
 
   timeout_create = var.provision_timeout
   timeout_clone  = var.provision_timeout
+  
+  # Don't wait for QEMU agent during creation (disk import happens after)
+  lifecycle {
+    ignore_changes = [started]
+  }
 
   # --------------------------------------------------------------------------
   # Hardware Configuration
@@ -204,6 +231,9 @@ resource "proxmox_virtual_environment_vm" "fcos" {
   # --------------------------------------------------------------------------
   # Storage Configuration
   # --------------------------------------------------------------------------
+  # --------------------------------------------------------------------------
+  # Storage Configuration
+  # --------------------------------------------------------------------------
   disk {
     datastore_id = var.vm_storage_pool
     interface    = var.vm_disk_interface
@@ -212,10 +242,7 @@ resource "proxmox_virtual_environment_vm" "fcos" {
     discard      = var.vm_disk_discard ? "on" : "ignore"
     iothread     = var.vm_disk_iothread
     cache        = "none"
-    
-    # Import FCOS image from coreos storage
-    file_format = "qcow2"
-    import_from = local.fcos_image_path
+    file_format  = "raw"
   }
 
   # --------------------------------------------------------------------------
@@ -254,11 +281,53 @@ resource "proxmox_virtual_environment_vm" "fcos" {
   # Delivers Ignition config via vendor data (official Proxmox method)
   # --------------------------------------------------------------------------
   initialization {
+    datastore_id        = var.vm_storage_pool
     vendor_data_file_id = "${var.coreos_storage}:snippets/${local.ignition_snippet_name}"
   }
 
-  # VM depends on Ignition file being uploaded to Proxmox
-  depends_on = [null_resource.upload_ignition]
+  # VM depends on Ignition file
+  depends_on = [
+    null_resource.upload_ignition
+  ]
+}
+
+# ------------------------------------------------------------------------------
+# Import FCOS disk after VM is created
+# Uses qm importdisk to convert qcow2 to VM disk format
+# ------------------------------------------------------------------------------
+resource "null_resource" "import_disk" {
+  count = var.create_vm ? 1 : 0
+
+  triggers = {
+    vm_id     = var.vm_id
+    image_path = local.fcos_image_path
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOF
+      set -e
+      
+      # Import disk using qm importdisk
+      ssh -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -i ${var.proxmox_ssh_private_key} \
+          ${var.proxmox_ssh_user}@${var.proxmox_host} \
+          "sudo qm importdisk ${var.vm_id} ${local.fcos_image_path} ${var.vm_storage_pool} -format qcow2"
+      
+      # Replace empty disk with imported disk and set boot order
+      ssh -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -i ${var.proxmox_ssh_private_key} \
+          ${var.proxmox_ssh_user}@${var.proxmox_host} \
+          "sudo qm set ${var.vm_id} --delete ${var.vm_disk_interface} && \
+           sudo qm set ${var.vm_id} --${var.vm_disk_interface} ${var.vm_storage_pool}:vm-${var.vm_id}-disk-1 && \
+           sudo qm set ${var.vm_id} --boot order=${var.vm_disk_interface} && \
+           sudo qm disk resize ${var.vm_id} ${var.vm_disk_interface} ${var.vm_disk_size} && \
+           sudo qm start ${var.vm_id}"
+    EOF
+  }
+
+  depends_on = [proxmox_virtual_environment_vm.fcos]
 }
 
 # ==============================================================================

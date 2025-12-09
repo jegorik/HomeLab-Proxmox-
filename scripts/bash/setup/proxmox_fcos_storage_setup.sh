@@ -163,14 +163,16 @@ check_proxmox() {
 create_storage_directory() {
     log_info "Creating Fedora CoreOS storage directory structure..."
     
-    if [[ -d "$STORAGE_PATH" ]]; then
-        log_warning "Directory $STORAGE_PATH already exists"
+    # Always create subdirectories (in case parent exists but subdirs don't)
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_dry_run "Would create: $STORAGE_PATH/{images,snippets}"
     else
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log_dry_run "Would create: $STORAGE_PATH/{images,snippets}"
+        mkdir -p "$STORAGE_PATH"/{images,snippets}
+        if [[ -d "$STORAGE_PATH" ]] && [[ -d "$STORAGE_PATH/images" ]] && [[ -d "$STORAGE_PATH/snippets" ]]; then
+            log_success "Storage directory structure ready: $STORAGE_PATH/{images,snippets}"
         else
-            mkdir -p "$STORAGE_PATH"/{images,snippets}
-            log_success "Created $STORAGE_PATH with subdirectories: images, snippets"
+            log_error "Failed to create storage directory structure"
+            return 1
         fi
     fi
     
@@ -181,6 +183,7 @@ create_storage_directory() {
         chmod 755 "$STORAGE_PATH"
         chmod 755 "$STORAGE_PATH/images"
         chmod 755 "$STORAGE_PATH/snippets"
+        log_info "Permissions set: 755 on all directories"
     fi
 }
 
@@ -212,9 +215,17 @@ download_fcos_image() {
     
     log_info "Downloading Fedora CoreOS image (stream: $FCOS_STREAM)..."
     
+    # Check if image already exists
+    if [[ -n "$(find "$STORAGE_PATH/images" -name "fedora-coreos-*-proxmoxve.x86_64.qcow2" -print -quit 2>/dev/null)" ]]; then
+        log_warning "Fedora CoreOS image already exists in $STORAGE_PATH/images/"
+        log_info "Existing images:"
+        ls -lh "$STORAGE_PATH/images/"
+        log_info "To re-download, delete existing images or set SKIP_IMAGE_DOWNLOAD=true"
+        return 0
+    fi
+    
     if [[ "$DRY_RUN" == "true" ]]; then
-        log_dry_run "Would fetch latest version from: https://builds.coreos.fedoraproject.org/streams/${FCOS_STREAM}.json"
-        log_dry_run "Would download and extract FCOS image to: $STORAGE_PATH/images/"
+        log_dry_run "Would download FCOS image to $STORAGE_PATH/images/"
         return 0
     fi
     

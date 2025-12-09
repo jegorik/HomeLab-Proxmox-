@@ -160,12 +160,12 @@ output "fcos_image_filename" {
   value       = local.fcos_image_filename
 }
 
-output "fcos_image_path" {
+output "fcos_image_id" {
   description = <<-EOT
-    Path to the Fedora CoreOS image in Proxmox coreos storage.
-    Format: /var/coreos/images/<filename>
+    Proxmox file ID for the Fedora CoreOS image.
+    Format: <storage>:0/<filename>
   EOT
-  value       = local.fcos_image_path
+  value       = "${var.coreos_storage}:0/${local.fcos_image_filename}"
 }
 
 # ==============================================================================
