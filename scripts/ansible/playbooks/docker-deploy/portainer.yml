@@ -1,0 +1,122 @@
+---
+# -----------------------------------------------------------------------------
+# Portainer Deployment Playbook
+#
+# Purpose:
+#   Deploy Portainer CE container to target hosts with Docker installed.
+#
+# Requirements:
+#   - Ansible 2.10+ (community.docker collection required)
+#   - community.docker collection: ansible-galaxy collection install community.docker
+#   - Target hosts must allow privilege escalation (become: true)
+#   - Optional: Docker already installed on hosts (this playbook will attempt to install)
+#
+# Usage:
+#   ansible-playbook -i inventory.ini -u <user> portainer.yml
+#
+# Variables (defaults shown):
+#   portainer_image: 'portainer/portainer-ce:latest'
+#   portainer_container_name: 'portainer'
+#   portainer_port: '9000'
+#
+# Author: jegorik
+# Last updated: 2025-12-09
+# -----------------------------------------------------------------------------
+- name: Deploy Portainer container
+  hosts: my_vm_group   # Inventory group containing target hosts for Portainer
+  become: true         # Require privilege escalation for package & Docker ops
+  vars:
+    # Docker image to deploy
+    portainer_image: "portainer/portainer-ce:latest"
+    # Container name to use for Portainer
+    portainer_container_name: "portainer"
+    # Port on the host to expose Portainer UI (container port is 9000)
+    portainer_port: "9000"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Install Docker engine
+    # Ensures Docker is present on the target host; this is necessary to run containers.
+    # On Debian/Ubuntu, package name is typically 'docker.io'. Adjust if needed for other distros.
+    # -------------------------------------------------------------------------
+    - name: Ensure Docker is installed
+      ansible.builtin.package:
+        name: docker.io
+        state: present
+      tags: [docker, install]
+
+    # -------------------------------------------------------------------------
+    # Start and enable Docker service
+    # Ensures Docker daemon is running and will start on boot.
+    # -------------------------------------------------------------------------
+    - name: Ensure Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      tags: [docker, service]
+
+    # -------------------------------------------------------------------------
+    # Pull Portainer image
+    # Pulls the container image locally to avoid a delay during container create.
+    # Uses community.docker.docker_image module (requires community.docker collection).
+    # -------------------------------------------------------------------------
+    - name: Pull Portainer image
+      community.docker.docker_image:
+        name: "{{ portainer_image }}"
+        source: pull
+      tags: [docker, image]
+
+    # -------------------------------------------------------------------------
+    # Run Portainer container
+    # Uses the community.docker.docker_container module to create/manage the container idempotently.
+    # The container mounts the Docker socket for controlling the Docker daemon and a named
+    # persistent volume 'portainer_data' to retain Portainer state across recreates.
+    # -------------------------------------------------------------------------
+    - name: Run Portainer container
+      community.docker.docker_container:
+        name: "{{ portainer_container_name }}"
+        image: "{{ portainer_image }}"
+        restart_policy: unless-stopped
+        ports:
+          - "{{ portainer_port }}:9000"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - portainer_data:/data
+      tags: [docker, container, portainer]
+---
+- name: Deploy Portainer container
+  hosts: my_vm_group   # Define your VM group in inventory
+  become: true         # Run tasks with sudo
+  vars:
+    portainer_image: "portainer/portainer-ce:latest"
+    portainer_container_name: "portainer"
+    portainer_port: "9000"
+
+  tasks:
+    - name: Ensure Docker is installed
+      ansible.builtin.package:
+        name: docker.io
+        state: present
+
+    - name: Ensure Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Pull Portainer image
+      community.docker.docker_image:
+        name: "{{ portainer_image }}"
+        source: pull
+
+    - name: Run Portainer container
+      community.docker.docker_container:
+        name: "{{ portainer_container_name }}"
+        image: "{{ portainer_image }}"
+        restart_policy: unless-stopped
+        ports:
+          - "9000:9000"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - portainer_data:/data
