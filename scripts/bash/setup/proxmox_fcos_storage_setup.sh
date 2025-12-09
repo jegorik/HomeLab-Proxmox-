@@ -77,6 +77,59 @@ execute_command() {
     fi
 }
 
+get_latest_fcos_version() {
+    local stream="$1"
+    local metadata_url="https://builds.coreos.fedoraproject.org/streams/${stream}.json"
+    
+    log_info "Fetching latest FCOS version for stream: ${stream}..."
+    
+    if command -v curl &> /dev/null; then
+        curl -sS "$metadata_url" | grep -oP '"version":\s*"\K[^"]+' | head -1
+    elif command -v wget &> /dev/null; then
+        wget -qO- "$metadata_url" | grep -oP '"version":\s*"\K[^"]+' | head -1
+    else
+        log_error "Neither curl nor wget found"
+        return 1
+    fi
+}
+
+download_and_extract() {
+    local url="$1"
+    local output_dir="$2"
+    local filename=$(basename "$url")
+    local output_file="${output_dir}/${filename}"
+    
+    log_info "Downloading: $filename"
+    
+    # Download compressed file
+    if command -v curl &> /dev/null; then
+        curl -L --progress-bar -o "$output_file" "$url" || return 1
+    elif command -v wget &> /dev/null; then
+        wget --show-progress -O "$output_file" "$url" || return 1
+    else
+        log_error "Neither curl nor wget found"
+        return 1
+    fi
+    
+    # Decompress if .xz file
+    if [[ "$filename" == *.xz ]]; then
+        log_info "Decompressing: $filename"
+        if command -v unxz &> /dev/null; then
+            unxz "$output_file" || return 1
+            log_success "Extracted: ${filename%.xz}"
+        elif command -v xz &> /dev/null; then
+            xz -d "$output_file" || return 1
+            log_success "Extracted: ${filename%.xz}"
+        else
+            log_error "xz/unxz not found - cannot decompress .xz file"
+            log_info "Install xz-utils: apt-get install xz-utils"
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root"
@@ -145,55 +198,107 @@ download_fcos_image() {
         return 0
     fi
     
+    log_info "Downloading Fedora CoreOS image (stream: $FCOS_STREAM)..."
+    
     if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "Downloading Fedora CoreOS image (stream: $FCOS_STREAM)..."
+        log_dry_run "Would fetch latest version from: https://builds.coreos.fedoraproject.org/streams/${FCOS_STREAM}.json"
+        log_dry_run "Would download and extract FCOS image to: $STORAGE_PATH/images/"
+        return 0
     fi
     
-    # Check if coreos-installer is available
+    # Method 1: Try coreos-installer binary (preferred)
     if command -v coreos-installer &> /dev/null; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log_dry_run "Would execute: coreos-installer download -s $FCOS_STREAM -p proxmoxve -f qcow2.xz --decompress -C $STORAGE_PATH/images"
-        else
-            log_info "Using coreos-installer binary"
-            coreos-installer download \
-                -s "$FCOS_STREAM" \
-                -p proxmoxve \
-                -f qcow2.xz \
-                --decompress \
-                -C "$STORAGE_PATH/images"
+        log_info "Using coreos-installer binary"
+        coreos-installer download \
+            -s "$FCOS_STREAM" \
+            -p proxmoxve \
+            -f qcow2.xz \
+            --decompress \
+            -C "$STORAGE_PATH/images"
+        
+        if [[ $? -eq 0 ]]; then
+            log_success "Fedora CoreOS image downloaded successfully"
+            log_info "Images in $STORAGE_PATH/images:"
+            ls -lh "$STORAGE_PATH/images/"
+            return 0
         fi
-    elif command -v podman &> /dev/null; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log_dry_run "Would execute: podman run --pull=always --rm -v $STORAGE_PATH/images:/data quay.io/coreos/coreos-installer:release download -s $FCOS_STREAM -p proxmoxve -f qcow2.xz --decompress"
-        else
-            log_info "Using coreos-installer via podman"
-            podman run --pull=always --rm \
-                -v "$STORAGE_PATH/images:/data" -w /data \
-                quay.io/coreos/coreos-installer:release \
-                download -s "$FCOS_STREAM" -p proxmoxve -f qcow2.xz --decompress
+    fi
+    
+    # Method 2: Try coreos-installer via podman
+    if command -v podman &> /dev/null; then
+        log_info "Using coreos-installer via podman"
+        podman run --pull=always --rm \
+            -v "$STORAGE_PATH/images:/data" -w /data \
+            quay.io/coreos/coreos-installer:release \
+            download -s "$FCOS_STREAM" -p proxmoxve -f qcow2.xz --decompress
+        
+        if [[ $? -eq 0 ]]; then
+            log_success "Fedora CoreOS image downloaded successfully"
+            log_info "Images in $STORAGE_PATH/images:"
+            ls -lh "$STORAGE_PATH/images/"
+            return 0
         fi
-    elif command -v docker &> /dev/null; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log_dry_run "Would execute: docker run --pull=always --rm -v $STORAGE_PATH/images:/data quay.io/coreos/coreos-installer:release download -s $FCOS_STREAM -p proxmoxve -f qcow2.xz --decompress"
-        else
-            log_info "Using coreos-installer via docker"
-            docker run --pull=always --rm \
-                -v "$STORAGE_PATH/images:/data" -w /data \
-                quay.io/coreos/coreos-installer:release \
-                download -s "$FCOS_STREAM" -p proxmoxve -f qcow2.xz --decompress
+    fi
+    
+    # Method 3: Try coreos-installer via docker
+    if command -v docker &> /dev/null; then
+        log_info "Using coreos-installer via docker"
+        docker run --pull=always --rm \
+            -v "$STORAGE_PATH/images:/data" -w /data \
+            quay.io/coreos/coreos-installer:release \
+            download -s "$FCOS_STREAM" -p proxmoxve -f qcow2.xz --decompress
+        
+        if [[ $? -eq 0 ]]; then
+            log_success "Fedora CoreOS image downloaded successfully"
+            log_info "Images in $STORAGE_PATH/images:"
+            ls -lh "$STORAGE_PATH/images/"
+            return 0
         fi
-    else
-        log_error "Neither coreos-installer nor podman/docker found"
-        log_error "Install one of them to download FCOS images"
-        log_info "Alternatively, download manually from:"
-        log_info "https://fedoraproject.org/coreos/download/"
+    fi
+    
+    # Method 4: Direct download with curl/wget (fallback)
+    log_info "Attempting direct download with curl/wget..."
+    
+    # Check for curl or wget
+    if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
+        log_error "No download tools available (curl, wget, coreos-installer, podman, docker)"
+        log_info "Install curl: apt-get install curl"
         return 1
     fi
     
-    if [[ "$DRY_RUN" == "false" ]]; then
-        log_success "Fedora CoreOS image downloaded successfully"
+    # Get latest version
+    local version=$(get_latest_fcos_version "$FCOS_STREAM")
+    if [[ -z "$version" ]]; then
+        log_error "Failed to fetch latest FCOS version"
+        log_info "Visit: https://fedoraproject.org/coreos/download?stream=$FCOS_STREAM"
+        return 1
+    fi
+    
+    log_info "Latest version: $version"
+    
+    # Construct download URL
+    local base_url="https://builds.coreos.fedoraproject.org/prod/streams/${FCOS_STREAM}/builds/${version}/x86_64"
+    local filename="fedora-coreos-${version}-proxmoxve.x86_64.qcow2.xz"
+    local download_url="${base_url}/${filename}"
+    
+    log_info "Download URL: $download_url"
+    
+    # Download and extract
+    if download_and_extract "$download_url" "$STORAGE_PATH/images"; then
+        log_success "Fedora CoreOS image downloaded and extracted successfully"
         log_info "Images in $STORAGE_PATH/images:"
         ls -lh "$STORAGE_PATH/images/"
+        return 0
+    else
+        log_error "Failed to download FCOS image"
+        echo ""
+        log_info "Manual download instructions:"
+        log_info "  1. Visit: https://fedoraproject.org/coreos/download?stream=$FCOS_STREAM"
+        log_info "  2. Download: Proxmox (proxmoxve) - QCOW2 (Compressed)"
+        log_info "  3. Extract: unxz fedora-coreos-*-proxmoxve.x86_64.qcow2.xz"
+        log_info "  4. Move to: $STORAGE_PATH/images/"
+        echo ""
+        return 1
     fi
 }
 
