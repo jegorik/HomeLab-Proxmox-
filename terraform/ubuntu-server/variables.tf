@@ -235,6 +235,18 @@ variable "vm_init_ip_config_ipv4" {
   default     = "dhcp"
 }
 
+variable "vm_init_ip_config_ipv4_gateway" {
+  description = "IPv4 gateway address for static IP configuration"
+  type        = string
+  default     = "192.168.0.1"
+}
+
+variable "vm_init_ip_config_dns_nameservers" {
+  description = "List of DNS nameservers for VM"
+  type        = list(string)
+  default     = ["1.1.1.1", "8.8.8.8"]
+}
+
 variable "vm_network_device_bridge" {
   description = "Network bridge to attach VM to"
   type        = string

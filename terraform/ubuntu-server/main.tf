@@ -85,7 +85,12 @@ resource "proxmox_virtual_environment_vm" "ubuntu_vm" {
     ip_config {
       ipv4 {
         address = var.vm_init_ip_config_ipv4
+        gateway = var.vm_init_ip_config_ipv4_gateway
       }
+    }
+
+    dns {
+      servers = var.vm_init_ip_config_dns_nameservers
     }
 
     # User account with SSH key authentication (primary) and password (backup)
