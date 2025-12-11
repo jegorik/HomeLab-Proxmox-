@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# Debug Playbook - Test SSH Connectivity
+# =============================================================================
+# Use this playbook to verify SSH connectivity before running other playbooks.
+# If this fails, the issue is with SSH configuration, not the main playbook.
+#
+# Usage:
+#   ansible-playbook -i inventory.yml debug_connection.yml
+# =============================================================================
+
+- name: Test SSH Connectivity
+  hosts: all
+  gather_facts: false  # Don't gather facts - just test connection
+  become: false        # Don't use sudo - just test SSH
+  
+  # Short timeouts for quick failure
+  vars:
+    ansible_ssh_timeout: 10
+  
+  tasks:
+    - name: Ping host (SSH connectivity test)
+      ansible.builtin.ping:
+      register: ping_result
+
+    - name: Display ping result
+      ansible.builtin.debug:
+        msg: "✅ SSH connection to {{ inventory_hostname }} successful!"
+
+    - name: Get basic system info (optional)
+      ansible.builtin.command: uname -a
+      register: uname_result
+      changed_when: false
+
+    - name: Display system info
+      ansible.builtin.debug:
+        msg: "System: {{ uname_result.stdout }}"

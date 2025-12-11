@@ -1,0 +1,353 @@
+---
+# =============================================================================
+# Ansible Playbook: System Package Update
+# =============================================================================
+#
+# Description:
+#   Updates system packages on Debian/Ubuntu, RHEL/CentOS/Fedora, and OpenSUSE hosts.
+#   Supports automatic reboot when kernel updates require it.
+#
+# Features:
+#   - Multi-distribution support (Debian, Ubuntu, RHEL, CentOS, Fedora, Rocky, OpenSUSE, SLES)
+#   - Conditional reboot only when required
+#   - Clean up of old packages and cache
+#   - Detailed output and logging
+#   - Idempotent execution
+#
+# Usage:
+#   # Update all hosts
+#   ansible-playbook -i inventory.yml update_vm_packages.yml
+#
+#   # Update specific group
+#   ansible-playbook -i inventory.yml update_vm_packages.yml -l webservers
+#
+#   # Skip reboot
+#   ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
+#
+#   # Dry run (check mode)
+#   ansible-playbook -i inventory.yml update_vm_packages.yml --check
+#
+# Tags:
+#   - update    : Package update tasks
+#   - cleanup   : Package cleanup tasks
+#   - reboot    : Reboot tasks
+#   - debian    : Debian/Ubuntu specific tasks
+#   - redhat    : RHEL/CentOS/Fedora specific tasks
+#   - suse      : OpenSUSE/SLES specific tasks
+#
+# Variables:
+#   reboot_enabled: true/false - Enable automatic reboot (default: true)
+#   reboot_timeout: seconds - Max wait time for reboot (default: 300)
+#   clean_packages: true/false - Remove unused packages (default: true)
+#
+# Author: HomeLab Infrastructure
+# Last Updated: December 2025
+# =============================================================================
+
+- name: Update System Packages
+  hosts: all
+  become: true
+  gather_facts: true
+  # Connection settings to prevent infinite hangs
+  gather_timeout: 30
+  timeout: 300
+
+  vars:
+    # Reboot configuration
+    reboot_enabled: true
+    reboot_timeout: 300
+    reboot_message: "Reboot initiated by Ansible for system updates"
+
+    # Cleanup configuration
+    clean_packages: true
+
+  # ---------------------------------------------------------------------------
+  # Pre-tasks: Display system information
+  # ---------------------------------------------------------------------------
+  pre_tasks:
+    - name: Display target system information
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          Architecture: {{ ansible_architecture }}
+      tags:
+        - always
+
+  # ---------------------------------------------------------------------------
+  # Tasks
+  # ---------------------------------------------------------------------------
+  tasks:
+    # -------------------------------------------------------------------------
+    # Debian/Ubuntu Systems (APT)
+    # -------------------------------------------------------------------------
+    - name: "[Debian/Ubuntu] Update apt cache"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      register: apt_cache_update
+      when: ansible_os_family == "Debian"
+      ignore_errors: true
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Warn if apt cache update failed"
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: apt cache update failed on {{ inventory_hostname }}. Some repos may have issues. Continuing with available packages."
+      when:
+        - ansible_os_family == "Debian"
+        - apt_cache_update is failed
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Upgrade all packages"
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: "{{ clean_packages }}"
+        autoclean: "{{ clean_packages }}"
+      register: apt_upgrade
+      when: ansible_os_family == "Debian"
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Display upgraded packages"
+      ansible.builtin.debug:
+        msg: "{{ apt_upgrade.stdout_lines | default(['No packages upgraded']) }}"
+      when:
+        - ansible_os_family == "Debian"
+        - apt_upgrade.changed
+      tags:
+        - update
+        - debian
+
+    - name: "[Debian/Ubuntu] Remove unused dependencies"
+      ansible.builtin.apt:
+        autoremove: true
+        purge: true
+      when:
+        - ansible_os_family == "Debian"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - debian
+
+    - name: "[Debian/Ubuntu] Clean apt cache"
+      ansible.builtin.apt:
+        autoclean: true
+      when:
+        - ansible_os_family == "Debian"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - debian
+
+    - name: "[Debian/Ubuntu] Check if reboot is required"
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+      when: ansible_os_family == "Debian"
+      tags:
+        - reboot
+        - debian
+
+    # -------------------------------------------------------------------------
+    # RHEL/CentOS/Fedora/Rocky Systems (DNF/YUM)
+    # -------------------------------------------------------------------------
+    - name: "[RHEL/CentOS] Update all packages (dnf)"
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: dnf_upgrade
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "dnf"
+      tags:
+        - update
+        - redhat
+
+    - name: "[RHEL/CentOS] Update all packages (yum)"
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: yum_upgrade
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "yum"
+      tags:
+        - update
+        - redhat
+
+    - name: "[RHEL/CentOS] Remove unused dependencies"
+      ansible.builtin.dnf:
+        autoremove: true
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "dnf"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - redhat
+
+    - name: "[RHEL/CentOS] Clean dnf cache"
+      ansible.builtin.command: dnf clean all
+      changed_when: false
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_pkg_mgr == "dnf"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - redhat
+
+    - name: "[RHEL/CentOS] Check if reboot is required"
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_required_rhel
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "RedHat"
+      tags:
+        - reboot
+        - redhat
+
+    # -------------------------------------------------------------------------
+    # OpenSUSE/SLES Systems (Zypper)
+    # -------------------------------------------------------------------------
+    - name: "[OpenSUSE/SLES] Refresh zypper repositories"
+      community.general.zypper:
+        name: "*"
+        state: latest
+        update_cache: true
+      register: zypper_cache_update
+      when: ansible_os_family == "Suse"
+      ignore_errors: true
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Warn if zypper refresh failed"
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: zypper refresh failed on {{ inventory_hostname }}. Some repos may have issues. Continuing with available packages."
+      when:
+        - ansible_os_family == "Suse"
+        - zypper_cache_update is failed
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Update all packages"
+      community.general.zypper:
+        name: "*"
+        state: latest
+        type: package
+      register: zypper_upgrade
+      when: ansible_os_family == "Suse"
+      ignore_errors: true
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Apply distribution updates (dup)"
+      ansible.builtin.command: zypper --non-interactive --no-gpg-checks dup --no-recommends --allow-vendor-change
+      register: zypper_dup
+      changed_when: "'Nothing to do' not in zypper_dup.stdout"
+      failed_when: false
+      ignore_errors: true
+      when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+        - dup
+
+    - name: "[OpenSUSE/SLES] Warn if dup had conflicts"
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: zypper dup had conflicts on {{ inventory_hostname }}. Manual intervention may be required. Run 'zypper dup' manually to resolve."
+      when:
+        - ansible_os_family == "Suse"
+        - zypper_dup.rc | default(0) != 0
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Remove unused packages"
+      ansible.builtin.command: zypper --non-interactive packages --unneeded
+      register: zypper_unneeded
+      changed_when: false
+      failed_when: false
+      when:
+        - ansible_os_family == "Suse"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - suse
+
+    - name: "[OpenSUSE/SLES] Clean zypper cache"
+      ansible.builtin.command: zypper clean --all
+      changed_when: false
+      when:
+        - ansible_os_family == "Suse"
+        - clean_packages | bool
+      tags:
+        - cleanup
+        - suse
+
+    - name: "[OpenSUSE/SLES] Check if reboot is required"
+      ansible.builtin.stat:
+        path: /run/reboot-needed
+      register: reboot_required_suse
+      when: ansible_os_family == "Suse"
+      tags:
+        - reboot
+        - suse
+
+    # -------------------------------------------------------------------------
+    # Reboot Tasks (All Systems)
+    # -------------------------------------------------------------------------
+    - name: Set reboot required fact
+      ansible.builtin.set_fact:
+        system_reboot_required: >-
+          {{
+            (ansible_os_family == "Debian" and reboot_required_file.stat.exists | default(false)) or
+            (ansible_os_family == "RedHat" and reboot_required_rhel.rc | default(0) == 1) or
+            (ansible_os_family == "Suse" and reboot_required_suse.stat.exists | default(false))
+          }}
+      tags:
+        - reboot
+
+    - name: Display reboot status
+      ansible.builtin.debug:
+        msg: "{{ 'Reboot IS required' if system_reboot_required else 'Reboot is NOT required' }}"
+      tags:
+        - reboot
+
+    - name: Reboot system if required
+      ansible.builtin.reboot:
+        msg: "{{ reboot_message }}"
+        connect_timeout: 10
+        reboot_timeout: "{{ reboot_timeout }}"
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: uptime
+      when:
+        - reboot_enabled | bool
+        - system_reboot_required | bool
+      tags:
+        - reboot
+
+  # ---------------------------------------------------------------------------
+  # Post-tasks: Summary
+  # ---------------------------------------------------------------------------
+  post_tasks:
+    - name: Display completion summary
+      ansible.builtin.debug:
+        msg: |
+          ✅ Update completed for {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Reboot performed: {{ 'Yes' if (reboot_enabled and system_reboot_required) else 'No' }}
+      tags:
+        - always   
