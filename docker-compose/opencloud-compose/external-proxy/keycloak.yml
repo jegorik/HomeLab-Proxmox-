@@ -1,7 +1,0 @@
-
-services:
-  keycloak:
-    ports:
-      # expose the keycloak server on localhost
-      - "9000:9000"
-      - "8080:8080"
