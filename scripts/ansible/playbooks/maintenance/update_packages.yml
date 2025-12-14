@@ -95,6 +95,11 @@
     enable_update_logging: true
     log_directory: "/var/log/ansible-updates"
 
+    # Check mode override - IMPORTANT FOR AUTOMATION
+    # If running with --check flag, this ensures we still see what WOULD happen
+    # For real execution, Semaphore should NOT use --check flag
+    skip_update_tasks: "{{ ansible_check_mode }}"
+
   # ---------------------------------------------------------------------------
   # Pre-tasks: Display system information and safety checks
   # ---------------------------------------------------------------------------
@@ -125,6 +130,21 @@
           - Progress will be logged
       when:
         - not ansible_check_mode
+      tags:
+        - always
+
+    - name: "[WARNING] Semaphore users: Remove --check flag for real updates!"
+      ansible.builtin.debug:
+        msg: |
+          ⚠️  IMPORTANT: This playbook is running in CHECK MODE (dry-run)
+          
+          To actually update packages:
+          1. Remove '--check' from Semaphore task arguments
+          2. Or run from command line WITHOUT --check:
+             ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml
+          
+          Check mode is useful for previewing changes, but packages are NOT updated in this mode.
+      when: ansible_check_mode
       tags:
         - always
 
