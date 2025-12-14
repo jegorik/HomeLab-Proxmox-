@@ -43,9 +43,20 @@
 #   - dup         : Distribution upgrade via dup (Tumbleweed only)
 #
 # Variables:
-#   reboot_enabled: true/false - Enable automatic reboot (default: true)
+#   reboot_enabled: true/false - Enable automatic reboot (default: false - SAFE)
 #   reboot_timeout: seconds - Max wait time for reboot (default: 300)
 #   clean_packages: true/false - Remove unused packages (default: true)
+#   auto_approve_updates: true/false - Skip manual approval (default: false - SAFE)
+#   only_security_updates: true/false - Only security updates (default: false)
+#
+# SECURITY RECOMMENDATIONS:
+#   - ALWAYS run with --check first: ansible-playbook ... --check
+#   - Set auto_approve_updates=false for production (requires manual approval)
+#   - Set reboot_enabled=false for critical systems (schedule reboots separately)
+#   - Use limit flag: -l staging to test on specific hosts first
+#   - Run during maintenance window only
+#   - Keep comprehensive logs of all updates
+#   - Review warning messages about problematic repositories
 #
 # Author: HomeLab Infrastructure
 # Last Updated: December 2025
@@ -60,16 +71,24 @@
   timeout: 300
 
   vars:
-    # Reboot configuration
-    reboot_enabled: true
+    # Reboot configuration - DEFAULT IS SAFE (no automatic reboot)
+    reboot_enabled: false
     reboot_timeout: 300
     reboot_message: "Reboot initiated by Ansible for system updates"
 
     # Cleanup configuration
     clean_packages: true
 
+    # Security configuration
+    auto_approve_updates: false  # Requires manual approval in production
+    only_security_updates: false # Set to true for security-critical systems
+
+    # Logging configuration
+    enable_update_logging: true
+    log_directory: "/var/log/ansible-updates"
+
   # ---------------------------------------------------------------------------
-  # Pre-tasks: Display system information
+  # Pre-tasks: Display system information and safety checks
   # ---------------------------------------------------------------------------
   pre_tasks:
     - name: Display target system information
@@ -79,6 +98,51 @@
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
           Kernel: {{ ansible_kernel }}
           Architecture: {{ ansible_architecture }}
+      tags:
+        - always
+
+    - name: "[SAFETY] Confirm automatic updates are approved"
+      ansible.builtin.pause:
+        prompt: |
+          
+          ⚠️  WARNING: This playbook will update packages on {{ inventory_hostname }}
+          
+          Current settings:
+          - Auto reboot: {{ reboot_enabled }}
+          - Auto approve updates: {{ auto_approve_updates }}
+          
+          Have you reviewed the changes in check mode? (yes/no)
+        echo: true
+      register: safety_confirmation
+      when:
+        - not ansible_check_mode
+        - not auto_approve_updates | bool
+      tags:
+        - always
+
+    - name: "[SAFETY] Abort if not approved"
+      ansible.builtin.fail:
+        msg: "Updates not approved. Playbook aborted for safety."
+      when:
+        - not ansible_check_mode
+        - not auto_approve_updates | bool
+        - safety_confirmation.user_input | lower not in ['yes', 'y']
+      tags:
+        - always
+
+    - name: "[INFO] Running in check mode (dry-run)"
+      ansible.builtin.debug:
+        msg: "✓ Check mode enabled - no changes will be made to {{ inventory_hostname }}"
+      when: ansible_check_mode
+      tags:
+        - always
+
+    - name: "[INFO] Running with auto-approval enabled"
+      ansible.builtin.debug:
+        msg: "⚠️  Auto-approval enabled - changes will be made without manual confirmation"
+      when:
+        - not ansible_check_mode
+        - auto_approve_updates | bool
       tags:
         - always
 
@@ -407,14 +471,56 @@
         - reboot
 
   # ---------------------------------------------------------------------------
-  # Post-tasks: Summary
+  # Post-tasks: Summary and Logging
   # ---------------------------------------------------------------------------
   post_tasks:
+    - name: "[AUDIT] Create update log directory"
+      ansible.builtin.file:
+        path: "{{ log_directory }}"
+        state: directory
+        mode: '0750'
+      become: true
+      delegate_to: "{{ inventory_hostname }}"
+      when: enable_update_logging | bool
+      tags:
+        - always
+
+    - name: "[AUDIT] Log update completion"
+      ansible.builtin.copy:
+        content: |
+          Update Summary for {{ inventory_hostname }}
+          ==========================================
+          Date: {{ ansible_date_time.iso8601 }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          
+          Reboot performed: {{ 'Yes' if (reboot_enabled and system_reboot_required) else 'No' }}
+          Check mode: {{ ansible_check_mode }}
+          
+          Operations completed:
+          - Package updates: {{ apt_upgrade.changed | default('N/A') }}
+          - Cleanup performed: {{ clean_packages }}
+          
+        dest: "{{ log_directory }}/update-{{ ansible_date_time.date }}-{{ ansible_date_time.time }}.log"
+      become: true
+      delegate_to: "{{ inventory_hostname }}"
+      when: enable_update_logging | bool
+      tags:
+        - always
+
     - name: Display completion summary
       ansible.builtin.debug:
         msg: |
+          
           ✅ Update completed for {{ inventory_hostname }}
+          ==========================================
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
           Reboot performed: {{ 'Yes' if (reboot_enabled and system_reboot_required) else 'No' }}
+          Check mode: {{ ansible_check_mode }}
+          
+          ⚠️  Security reminders:
+          - Review any warning messages about repositories
+          - Monitor system for any issues after reboot
+          - Keep update logs for audit purposes
       tags:
         - always   
