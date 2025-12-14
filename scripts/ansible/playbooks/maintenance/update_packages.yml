@@ -233,24 +233,42 @@
         - update
         - suse
 
-    - name: "[OpenSUSE/SLES] Refresh zypper repositories"
-      community.general.zypper:
-        name: "*"
-        state: latest
-        update_cache: true
-      register: zypper_cache_update
+    - name: "[OpenSUSE/SLES] Clean zypper cache before refresh"
+      ansible.builtin.command: zypper clean --all
+      changed_when: false
+      failed_when: false
       when: ansible_os_family == "Suse"
-      ignore_errors: true
       tags:
         - update
         - suse
 
-    - name: "[OpenSUSE/SLES] Warn if zypper refresh failed"
+    - name: "[OpenSUSE/SLES] Refresh zypper repositories with GPG key auto-import"
+      ansible.builtin.command: zypper --gpg-auto-import-keys --non-interactive refresh
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] List invalid/disabled repositories"
+      ansible.builtin.command: zypper lr -d
+      register: zypper_repos
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+
+    - name: "[OpenSUSE/SLES] Warn about problematic repositories"
       ansible.builtin.debug:
-        msg: "⚠️  WARNING: zypper refresh failed on {{ inventory_hostname }}. Some repos may have issues. Continuing with available packages."
+        msg: |
+          ⚠️  WARNING: Found disabled or problematic repositories on {{ inventory_hostname }}.
+          Run 'zypper lr -d' to view them and consider removing problematic ones.
       when:
         - ansible_os_family == "Suse"
-        - zypper_cache_update is failed
+        - "('d' in zypper_repos.stdout or 'disabled' in zypper_repos.stdout)"
       tags:
         - update
         - suse
@@ -259,15 +277,13 @@
     # OpenSUSE Leap: Standard package updates only
     # -------------------------------------------------------------------------
     - name: "[OpenSUSE Leap] Update all packages"
-      community.general.zypper:
-        name: "*"
-        state: latest
-        type: package
+      ansible.builtin.command: zypper --gpg-auto-import-keys --non-interactive update --type package
       register: zypper_upgrade_leap
+      changed_when: "'Updating' in zypper_upgrade_leap.stdout or 'removed' in zypper_upgrade_leap.stdout"
+      failed_when: "zypper_upgrade_leap.rc not in [0, 103]"
       when:
         - ansible_os_family == "Suse"
         - not is_opensuse_tumbleweed | default(false)
-      ignore_errors: true
       tags:
         - update
         - suse
@@ -289,11 +305,10 @@
     # OpenSUSE Tumbleweed: Full distribution upgrade via snapshots
     # -------------------------------------------------------------------------
     - name: "[OpenSUSE Tumbleweed] Apply distribution upgrade (dup)"
-      ansible.builtin.command: zypper --non-interactive --no-gpg-checks dup --no-recommends --allow-vendor-change
+      ansible.builtin.command: zypper --gpg-auto-import-keys --non-interactive dup --no-recommends --allow-vendor-change
       register: zypper_dup
-      changed_when: "'Nothing to do' not in zypper_dup.stdout"
-      failed_when: false
-      ignore_errors: true
+      changed_when: "'Upgrading' in zypper_dup.stdout or 'removed' in zypper_dup.stdout or 'installing' in zypper_dup.stdout"
+      failed_when: "zypper_dup.rc not in [0, 103]"
       when:
         - ansible_os_family == "Suse"
         - is_opensuse_tumbleweed | default(false)
@@ -309,7 +324,7 @@
       when:
         - ansible_os_family == "Suse"
         - is_opensuse_tumbleweed | default(false)
-        - zypper_dup is changed
+        - zypper_dup.changed
       tags:
         - update
         - suse
@@ -321,15 +336,14 @@
       when:
         - ansible_os_family == "Suse"
         - is_opensuse_tumbleweed | default(false)
-        - zypper_dup.rc | default(0) != 0
+        - zypper_dup.rc | default(0) not in [0, 103]
       tags:
         - update
         - suse
         - tumbleweed
 
     - name: "[OpenSUSE/SLES] Remove unused packages"
-      ansible.builtin.command: zypper --non-interactive packages --unneeded
-      register: zypper_unneeded
+      ansible.builtin.command: zypper --non-interactive remove --clean-deps
       changed_when: false
       failed_when: false
       when:
