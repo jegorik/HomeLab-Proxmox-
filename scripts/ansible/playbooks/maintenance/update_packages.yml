@@ -19,17 +19,20 @@
 #   - Idempotent execution
 #
 # Usage:
-#   # Update all hosts
+#   # Dry run (check mode - safe to run anytime)
+#   ansible-playbook -i inventory.yml update_vm_packages.yml --check
+#
+#   # Full automation (for Semaphore/Cron scheduled runs)
 #   ansible-playbook -i inventory.yml update_vm_packages.yml
 #
-#   # Update specific group
+#   # Update specific group only
 #   ansible-playbook -i inventory.yml update_vm_packages.yml -l webservers
 #
-#   # Skip reboot
-#   ansible-playbook -i inventory.yml update_vm_packages.yml --skip-tags reboot
+#   # Enable automatic reboot (during maintenance window)
+#   ansible-playbook -i inventory.yml update_vm_packages.yml -e "reboot_enabled=true"
 #
-#   # Dry run (check mode)
-#   ansible-playbook -i inventory.yml update_vm_packages.yml --check
+#   # Skip non-security updates (critical systems only)
+#   ansible-playbook -i inventory.yml update_vm_packages.yml -e "only_security_updates=true"
 #
 # Tags:
 #   - update      : Package update tasks
@@ -71,7 +74,8 @@
   timeout: 300
 
   vars:
-    # Reboot configuration - DEFAULT IS SAFE (no automatic reboot)
+    # Reboot configuration - SAFE DEFAULT (no automatic reboot)
+    # For scheduled automation, set to true during maintenance windows
     reboot_enabled: false
     reboot_timeout: 300
     reboot_message: "Reboot initiated by Ansible for system updates"
@@ -79,9 +83,13 @@
     # Cleanup configuration
     clean_packages: true
 
-    # Security configuration
-    auto_approve_updates: false  # Requires manual approval in production
-    only_security_updates: false # Set to true for security-critical systems
+    # Automation configuration - DEFAULT IS AUTOMATION-FRIENDLY
+    # Set to true when running via Semaphore/Cron/CI
+    # Set to false only for manual testing/interactive runs
+    auto_approve_updates: true
+
+    # Update filtering for critical systems
+    only_security_updates: false  # Set to true to skip non-security updates
 
     # Logging configuration
     enable_update_logging: true
@@ -101,48 +109,22 @@
       tags:
         - always
 
-    - name: "[SAFETY] Confirm automatic updates are approved"
-      ansible.builtin.pause:
-        prompt: |
-          
-          ⚠️  WARNING: This playbook will update packages on {{ inventory_hostname }}
-          
-          Current settings:
-          - Auto reboot: {{ reboot_enabled }}
-          - Auto approve updates: {{ auto_approve_updates }}
-          
-          Have you reviewed the changes in check mode? (yes/no)
-        echo: true
-      register: safety_confirmation
-      when:
-        - not ansible_check_mode
-        - not auto_approve_updates | bool
-      tags:
-        - always
-
-    - name: "[SAFETY] Abort if not approved"
-      ansible.builtin.fail:
-        msg: "Updates not approved. Playbook aborted for safety."
-      when:
-        - not ansible_check_mode
-        - not auto_approve_updates | bool
-        - safety_confirmation.user_input | lower not in ['yes', 'y']
-      tags:
-        - always
-
-    - name: "[INFO] Running in check mode (dry-run)"
+    - name: "[INFO] Check mode (dry-run) - no changes will be made"
       ansible.builtin.debug:
-        msg: "✓ Check mode enabled - no changes will be made to {{ inventory_hostname }}"
+        msg: "✓ Check mode enabled - previewing changes only"
       when: ansible_check_mode
       tags:
         - always
 
-    - name: "[INFO] Running with auto-approval enabled"
+    - name: "[INFO] Automation mode - changes will be applied"
       ansible.builtin.debug:
-        msg: "⚠️  Auto-approval enabled - changes will be made without manual confirmation"
+        msg: |
+          ℹ️  Running in full automation mode
+          - Reboot enabled: {{ reboot_enabled }}
+          - Packages will be updated automatically
+          - Progress will be logged
       when:
         - not ansible_check_mode
-        - auto_approve_updates | bool
       tags:
         - always
 
