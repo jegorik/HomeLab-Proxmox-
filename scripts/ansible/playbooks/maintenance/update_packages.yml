@@ -4,8 +4,12 @@
 # =============================================================================
 #
 # Description:
-#   Updates system packages on Debian/Ubuntu, RHEL/CentOS/Fedora, and OpenSUSE hosts.
+#   Updates system packages on Debian/Ubuntu, RHEL/CentOS/Fedora, OpenSUSE Leap, and OpenSUSE Tumbleweed hosts.
 #   Supports automatic reboot when kernel updates require it.
+#   
+#   OpenSUSE variant detection:
+#   - Leap: Uses 'zypper update' for standard package updates (conservative approach)
+#   - Tumbleweed: Uses 'zypper dup' for distribution snapshots (recommended approach)
 #
 # Features:
 #   - Multi-distribution support (Debian, Ubuntu, RHEL, CentOS, Fedora, Rocky, OpenSUSE, SLES)
@@ -28,12 +32,15 @@
 #   ansible-playbook -i inventory.yml update_vm_packages.yml --check
 #
 # Tags:
-#   - update    : Package update tasks
-#   - cleanup   : Package cleanup tasks
-#   - reboot    : Reboot tasks
-#   - debian    : Debian/Ubuntu specific tasks
-#   - redhat    : RHEL/CentOS/Fedora specific tasks
-#   - suse      : OpenSUSE/SLES specific tasks
+#   - update      : Package update tasks
+#   - cleanup     : Package cleanup tasks
+#   - reboot      : Reboot tasks
+#   - debian      : Debian/Ubuntu specific tasks
+#   - redhat      : RHEL/CentOS/Fedora specific tasks
+#   - suse        : OpenSUSE/SLES specific tasks
+#   - leap        : OpenSUSE Leap specific tasks
+#   - tumbleweed  : OpenSUSE Tumbleweed specific tasks
+#   - dup         : Distribution upgrade via dup (Tumbleweed only)
 #
 # Variables:
 #   reboot_enabled: true/false - Enable automatic reboot (default: true)
@@ -218,6 +225,14 @@
     # -------------------------------------------------------------------------
     # OpenSUSE/SLES Systems (Zypper)
     # -------------------------------------------------------------------------
+    - name: "[OpenSUSE/SLES] Detect system variant (Leap vs Tumbleweed)"
+      ansible.builtin.set_fact:
+        is_opensuse_tumbleweed: "{{ ansible_distribution_release | lower == 'tumbleweed' }}"
+      when: ansible_os_family == "Suse"
+      tags:
+        - update
+        - suse
+
     - name: "[OpenSUSE/SLES] Refresh zypper repositories"
       community.general.zypper:
         name: "*"
@@ -240,39 +255,77 @@
         - update
         - suse
 
-    - name: "[OpenSUSE/SLES] Update all packages"
+    # -------------------------------------------------------------------------
+    # OpenSUSE Leap: Standard package updates only
+    # -------------------------------------------------------------------------
+    - name: "[OpenSUSE Leap] Update all packages"
       community.general.zypper:
         name: "*"
         state: latest
         type: package
-      register: zypper_upgrade
-      when: ansible_os_family == "Suse"
+      register: zypper_upgrade_leap
+      when:
+        - ansible_os_family == "Suse"
+        - not is_opensuse_tumbleweed | default(false)
       ignore_errors: true
       tags:
         - update
         - suse
+        - leap
 
-    - name: "[OpenSUSE/SLES] Apply distribution updates (dup)"
+    - name: "[OpenSUSE Leap] Display upgraded packages"
+      ansible.builtin.debug:
+        msg: "✅ Package update completed on {{ inventory_hostname }} (OpenSUSE Leap)"
+      when:
+        - ansible_os_family == "Suse"
+        - not is_opensuse_tumbleweed | default(false)
+        - zypper_upgrade_leap is changed
+      tags:
+        - update
+        - suse
+        - leap
+
+    # -------------------------------------------------------------------------
+    # OpenSUSE Tumbleweed: Full distribution upgrade via snapshots
+    # -------------------------------------------------------------------------
+    - name: "[OpenSUSE Tumbleweed] Apply distribution upgrade (dup)"
       ansible.builtin.command: zypper --non-interactive --no-gpg-checks dup --no-recommends --allow-vendor-change
       register: zypper_dup
       changed_when: "'Nothing to do' not in zypper_dup.stdout"
       failed_when: false
       ignore_errors: true
-      when: ansible_os_family == "Suse"
+      when:
+        - ansible_os_family == "Suse"
+        - is_opensuse_tumbleweed | default(false)
       tags:
         - update
         - suse
+        - tumbleweed
         - dup
 
-    - name: "[OpenSUSE/SLES] Warn if dup had conflicts"
+    - name: "[OpenSUSE Tumbleweed] Display dup result"
+      ansible.builtin.debug:
+        msg: "✅ Distribution upgrade completed on {{ inventory_hostname }} (OpenSUSE Tumbleweed via snapshots)"
+      when:
+        - ansible_os_family == "Suse"
+        - is_opensuse_tumbleweed | default(false)
+        - zypper_dup is changed
+      tags:
+        - update
+        - suse
+        - tumbleweed
+
+    - name: "[OpenSUSE Tumbleweed] Warn if dup had conflicts"
       ansible.builtin.debug:
         msg: "⚠️  WARNING: zypper dup had conflicts on {{ inventory_hostname }}. Manual intervention may be required. Run 'zypper dup' manually to resolve."
       when:
         - ansible_os_family == "Suse"
+        - is_opensuse_tumbleweed | default(false)
         - zypper_dup.rc | default(0) != 0
       tags:
         - update
         - suse
+        - tumbleweed
 
     - name: "[OpenSUSE/SLES] Remove unused packages"
       ansible.builtin.command: zypper --non-interactive packages --unneeded
