@@ -14,17 +14,20 @@ This guide covers security best practices for using the `update_packages.yml` pl
 zypper --gpg-auto-import-keys --non-interactive update
 ```
 
-**Why it's risky**: 
+**Why it's risky**:
+
 - Could accept keys from compromised repositories
 - No opportunity to verify key fingerprints
 - Suitable only for isolated homelab environments
 
 **Safe alternatives for production**:
+
 - Manually import trusted GPG keys beforehand
 - Use repository mirrors with pre-verified keys
 - Disable untrusted repositories before running playbook
 
 **Mitigation**:
+
 ```bash
 # Before running playbook:
 zypper ar <trusted-repo-url> <name>  # Add only trusted repos
@@ -40,11 +43,13 @@ zypper rr untrusted-repo             # Remove problematic repos
 **New default**: `reboot_enabled: false` ✅ **SAFE**
 
 **Why automatic reboot is risky**:
+
 - Production services interrupted unexpectedly
 - Dependent systems may fail if one host reboots
 - No chance to coordinate maintenance window
 
 **Safe usage**:
+
 ```bash
 # Development/Staging only:
 ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml \
@@ -77,6 +82,7 @@ ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml \
 ```
 
 **Best practice workflow**:
+
 1. Run with `--check` flag first
 2. Review the output carefully
 3. If safe, run without `--check`
@@ -90,6 +96,7 @@ ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml \
 **Action needed**: Create system snapshots before major updates
 
 For Proxmox/LXC environments:
+
 ```bash
 # Create snapshot before playbook
 pct snapshot <CTID> pre-update-$(date +%Y%m%d)
@@ -99,6 +106,7 @@ ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml --ch
 ```
 
 For traditional VMs:
+
 - Use LVM snapshots
 - Create VM snapshots
 - Use backup tools (Bacula, Duplicati, etc.)
@@ -110,8 +118,10 @@ For traditional VMs:
 The playbook uses `become: true` for all tasks.
 
 **Good practices**:
+
 - Ensure `ansible_user` has passwordless sudo configured
 - Limit sudo to specific commands if possible:
+
   ```bash
   # /etc/sudoers.d/ansible
   ansible ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/dnf, /usr/bin/zypper, /usr/sbin/reboot
@@ -136,6 +146,7 @@ Some tasks use `ignore_errors: true` or `failed_when: false`:
 **Why**: To continue with available packages when some repos fail
 
 **Safe approach**:
+
 - Warnings are displayed for failed operations
 - Check the output for `⚠️  WARNING:` messages
 - Investigate and fix problematic repositories before next run
@@ -145,6 +156,7 @@ Some tasks use `ignore_errors: true` or `failed_when: false`:
 ## 📋 Safe Usage Checklist
 
 ### Pre-Execution
+
 - [ ] Run playbook in `--check` mode first
 - [ ] Review all proposed changes
 - [ ] Test on staging/dev environment first
@@ -154,6 +166,7 @@ Some tasks use `ignore_errors: true` or `failed_when: false`:
 - [ ] Review problematic repositories and remove if unnecessary
 
 ### Execution
+
 - [ ] Use limited host selection (`-l groupname`)
 - [ ] Use `--verbose` flag to see detailed output
 - [ ] Monitor system metrics during execution
@@ -161,6 +174,7 @@ Some tasks use `ignore_errors: true` or `failed_when: false`:
 - [ ] Check warning messages after completion
 
 ### Post-Execution
+
 - [ ] Monitor system for issues (logs, services, resources)
 - [ ] Verify all critical services started correctly
 - [ ] Check for reboot messages in system logs
@@ -171,7 +185,7 @@ Some tasks use `ignore_errors: true` or `failed_when: false`:
 
 ## 🔐 Production Deployment Example
 
-### For Production Systems:
+### For Production Systems
 
 ```bash
 # Step 1: Dry run on staging
@@ -212,7 +226,7 @@ ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml \
 
 The playbook will warn you about disabled repositories:
 
-```
+```text
 ⚠️  WARNING: Found disabled or problematic repositories on 192.168.0.125
 Run 'zypper lr -d' to view them and consider removing problematic ones.
 ```
@@ -237,12 +251,14 @@ sudo zypper lr
 
 ## 📊 Monitoring & Logging
 
-### Logs are saved in:
-```
+### Logs are saved in
+
+```bash
 /var/log/ansible-updates/update-YYYY-MM-DD-HH:MM:SS.log
 ```
 
-### Monitor updates with:
+### Monitor updates with
+
 ```bash
 # Check recent updates
 sudo tail -f /var/log/apt/history.log           # Debian/Ubuntu
@@ -259,10 +275,11 @@ test -f /run/reboot-needed                  # OpenSUSE
 
 ## 🚨 Incident Response
 
-### If Something Goes Wrong:
+### If Something Goes Wrong
 
 1. **Stop the playbook**: Press `Ctrl+C`
 2. **Check system status**:
+
    ```bash
    ssh <host>
    sudo systemctl status
@@ -270,6 +287,7 @@ test -f /run/reboot-needed                  # OpenSUSE
    ```
 
 3. **Rollback if needed** (if you have snapshots):
+
    ```bash
    pct rollback <CTID> pre-update-YYYYMMDD
    ```
@@ -280,16 +298,17 @@ test -f /run/reboot-needed                  # OpenSUSE
 
 ## 🔄 Maintenance Schedule
 
-### Recommended Update Schedule:
+### Recommended Update Schedule
 
 - **Development**: On-demand, no restrictions
 - **Staging**: Weekly, Tuesday evenings, with approval
-- **Production**: 
+- **Production**:
+
   - Security updates: Weekly (automatic with approval)
   - Standard updates: Monthly (scheduled, manual approval)
   - Major updates: Quarterly (with extensive testing)
 
-### Example Cron Jobs:
+### Example Cron Jobs
 
 ```bash
 # Weekly security updates check (Staging)
@@ -320,6 +339,7 @@ test -f /run/reboot-needed                  # OpenSUSE
 ## ❓ Questions?
 
 For security concerns or improvements, please:
+
 1. Create an issue with security label
 2. Contact the infrastructure team
 3. Do NOT commit security credentials to repository

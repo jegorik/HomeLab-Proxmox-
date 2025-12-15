@@ -3,6 +3,7 @@
 ## Problem: Script Shows "Check mode: True" but Nothing Updates
 
 ### Root Cause
+
 Your Semaphore Task Template has the `--check` flag enabled, which puts Ansible in **dry-run mode**. This previews changes but doesn't apply them.
 
 ### Solution: Fix Semaphore Task Configuration
@@ -16,12 +17,14 @@ Your Semaphore Task Template has the `--check` flag enabled, which puts Ansible 
 7. **Save**
 
 ### Before (Wrong):
-```
+
+```text
 Arguments: --check -i inventory.yml playbooks/maintenance/update_packages.yml
 ```
 
 ### After (Correct):
-```
+
+```text
 Arguments: -i inventory.yml playbooks/maintenance/update_packages.yml
 ```
 
@@ -34,7 +37,8 @@ Or leave Arguments blank if the playbook path is set separately.
 Run the task again. You should see:
 
 ✅ **Correct (Real Updates)**:
-```
+
+```text
 5:24:58 PM
 Check mode: False
 ...
@@ -43,7 +47,8 @@ changed: [192.168.0.118]  ← Packages are actually updating
 ```
 
 ❌ **Wrong (Dry-Run Only)**:
-```
+
+```text
 5:24:58 PM
 Check mode: True
 ...
@@ -66,12 +71,14 @@ changed=3  ← But no actual changes were made
 ### Via Semaphore UI (Recommended)
 
 **For Testing (Check Mode)**:
+
 1. In Task template, add `--check` to Arguments
 2. Run the task
 3. Review what WOULD change
 4. If safe, remove `--check` and run again
 
 **For Production (Real Updates)**:
+
 1. Remove `--check` from Arguments
 2. Save
 3. Run the task
@@ -80,11 +87,13 @@ changed=3  ← But no actual changes were made
 ### Via Command Line
 
 **Testing only**:
+
 ```bash
 ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml --check
 ```
 
 **Real updates**:
+
 ```bash
 ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml
 ```
@@ -94,12 +103,14 @@ ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml
 ## Common Mistakes
 
 ### ❌ Mistake 1: Forgetting to Remove `--check`
+
 ```bash
 # This will NOT update - just preview
 ansible-playbook playbooks/maintenance/update_packages.yml --check
 ```
 
 ### ✅ Fix: Run without `--check`
+
 ```bash
 # This WILL actually update packages
 ansible-playbook playbooks/maintenance/update_packages.yml
@@ -108,12 +119,14 @@ ansible-playbook playbooks/maintenance/update_packages.yml
 ---
 
 ### ❌ Mistake 2: Check flag in Semaphore Environment
+
 ```yaml
 # In Semaphore environment variables - WRONG
 ansible_check_mode: true
 ```
 
 ### ✅ Fix: Remove this variable
+
 ```yaml
 # Don't set this for production runs
 # Only set it when you want to test first
@@ -126,23 +139,27 @@ ansible_check_mode: true
 ### Step 1: Create TWO Task Templates in Semaphore
 
 **Template 1: "Update Packages - CHECK MODE" (Testing)**
-```
+
+```text
 Arguments: --check -i inventory.yml playbooks/maintenance/update_packages.yml
 Manual trigger only (not scheduled)
 ```
 
 **Template 2: "Update Packages - APPLY" (Production)**
-```
+
+```text
 Arguments: -i inventory.yml playbooks/maintenance/update_packages.yml
 Scheduled: Tuesday 02:00 AM
 ```
 
 ### Step 2: Testing Workflow
+
 1. Run "CHECK MODE" template
 2. Review the output
 3. If safe, proceed to step 3
 
 ### Step 3: Real Updates
+
 1. Run "APPLY" template on schedule
 2. Monitor logs
 3. Done!
@@ -154,6 +171,7 @@ Scheduled: Tuesday 02:00 AM
 ### Check What Semaphore is Running
 
 In Semaphore UI:
+
 1. Go to **Tasks → Templates**
 2. Click your "Update Packages" task
 3. Look at the **Playbook** field
@@ -161,7 +179,7 @@ In Semaphore UI:
 
 ### Expected Configuration
 
-```
+```text
 Template Name: Update Packages
 Playbook: scripts/ansible/playbooks/maintenance/update_packages.yml
 Inventory: [your inventory name]
@@ -176,7 +194,7 @@ Schedule: 0 2 * * 2  (Tuesday 2 AM)
 
 Once fixed, you should see:
 
-```
+```text
 PLAY RECAP
 192.168.0.118 : ok=13 changed=5  ← More changes mean packages were updated
 192.168.0.117 : ok=13 changed=5  ← Numbers should be different each run
@@ -184,7 +202,8 @@ PLAY RECAP
 ```
 
 And logs will be created:
-```
+
+```text
 /var/log/ansible-updates/update-2025-12-14-17:30:00.log
 ```
 
@@ -195,6 +214,7 @@ And logs will be created:
 ### Debug Steps
 
 1. **Verify Semaphore task arguments**:
+
    ```bash
    # SSH to Semaphore host
    grep -r "update_packages" /opt/semaphore/config/
@@ -206,12 +226,14 @@ And logs will be created:
    - Search for "Check mode" in the output
 
 3. **Manually test the command**:
+
    ```bash
    cd /path/to/ansible
    ansible-playbook -i inventory.yml playbooks/maintenance/update_packages.yml
    ```
 
 4. **Check Ansible version**:
+
    ```bash
    ansible --version
    ```

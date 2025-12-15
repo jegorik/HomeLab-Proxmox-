@@ -11,7 +11,8 @@ Infrastructure as Code templates for Proxmox VE virtual machines and containers.
 terraform/
 ├── ubuntu-server/       # Ubuntu Server VM with cloud-init
 ├── lxc-grafana/         # Grafana LXC container
-└── fedora_core/         # Fedora CoreOS VM with Ignition
+├── fedora_core/         # Fedora CoreOS VM with Ignition
+└── opensuseLeap/        # OpenSUSE Leap 16 workstation with GPU passthrough
 ```
 
 ## 📋 Available Templates
@@ -93,6 +94,63 @@ tofu apply  # VM deploys with Ignition applied automatically
 ssh core@<vm-ip>
 ```
 
+### opensuseLeap
+
+**Purpose**: Deploy OpenSUSE Leap 16 workstations with GPU and USB passthrough.
+
+**Features**:
+
+- Full GPU passthrough support (AMD/Intel/NVIDIA)
+- USB device passthrough (peripherals, storage)
+- UEFI boot with OVMF firmware
+- High-performance disk I/O (io_uring, writeback cache)
+- QEMU Guest Agent integration
+- Hyper-V enlightenments for efficiency
+- State file encryption (PBKDF2-AES-GCM)
+- AWS S3 backend support
+- Comprehensive GPU discovery helper scripts
+
+**Use Cases**:
+
+- 🎮 Gaming environments with modern GPUs
+- 🤖 AI/ML development with CUDA/ROCm support
+- 🎬 Multimedia editing and rendering workstations
+- 💻 High-performance development environments
+
+**Prerequisites**:
+
+- Proxmox VE 8.x with IOMMU enabled in BIOS
+- Compatible GPU with IOMMU support (AMD Polaris/RDNA, Intel Arc, NVIDIA)
+- 24GB+ RAM recommended
+- 150GB+ storage for VM disk
+
+**Quick Start**:
+
+```bash
+# 1. Identify your GPU and USB devices
+lspci | grep -E "VGA|Audio"  # For GPU
+lsusb                        # For USB devices
+
+# 2. Create configuration
+cd opensuseLeap
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Update GPU/USB IDs, credentials
+
+# 3. Deploy
+tofu init
+tofu plan
+tofu apply
+
+# 4. Access VM
+ssh user@<vm-ip>
+
+# 5. Install GPU drivers in VM
+# For AMD: sudo zypper install amdgpu-pro
+# For NVIDIA: Follow NVIDIA CUDA setup for OpenSUSE
+```
+
+**See [opensuseLeap/README.md](opensuseLeap/README.md) for detailed setup instructions.**
+
 ## 🔧 Common Configuration
 
 ### Provider Setup
@@ -144,11 +202,29 @@ Or use local state by modifying `backend.tf`.
 
 ## 🔒 Security Notes
 
-- Never commit `terraform.tfvars` with real credentials
-- Use `.gitignore` to exclude sensitive files
-- API tokens should have minimal required permissions
-- Consider using Vault for secret management
+⚠️ **Critical Security Considerations**:
+
+- **Never commit `terraform.tfvars`** with real credentials to version control
+- Use `.gitignore` to exclude sensitive files: `terraform.tfvars`, `*.tfstate`, `pg.backend.conf`, `s3.backend.config`
+- **API tokens** should have minimal required permissions only
+- **Rotate credentials regularly**, especially if exposed accidentally
+- Use environment variables for sensitive values:
+
+```bash
+export TF_VAR_proxmox_api_token="terraform@pve!token-id=secret"
+export TF_VAR_proxmox_endpoint="https://proxmox-ip:8006"
+```
+
+- Consider using **HashiCorp Vault** or **AWS Secrets Manager** for production
+- **GPU passthrough** exposes hardware directly; verify IOMMU isolation
+- **USB passthrough** gives VM access to peripherals; audit which devices are exposed
+- For **TLS/SSL**: Use proper certificates in production, not self-signed
+
+```hcl
+insecure = false  # Production
+# tls_cert_path = "/etc/ssl/certs/proxmox-ca.pem"
+```
 
 ---
 
-See individual template READMEs for detailed documentation.
+**See individual template READMEs for detailed documentation and setup guides.**

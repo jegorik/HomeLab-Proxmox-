@@ -1,0 +1,318 @@
+# =============================================================================
+# OpenSUSE Leap 16 VM Configuration Values - EXAMPLE TEMPLATE
+# =============================================================================
+# This file is a template for creating terraform.tfvars with your actual values.
+#
+# SETUP INSTRUCTIONS:
+# 1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+# 2. Replace placeholder values with your actual configuration
+# 3. Update GPU and USB device IDs based on your hardware (see README.md)
+# 4. NEVER commit terraform.tfvars to version control
+# 5. Add .gitignore entry: echo "terraform.tfvars" >> .gitignore
+#
+# SECURITY NOTE:
+# - terraform.tfvars contains sensitive information (API token, credentials)
+# - Restrict file permissions: chmod 600 terraform.tfvars
+# - Use environment variables or HashiCorp Vault in production
+# - Rotate API tokens regularly
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Proxmox Connection Configuration
+# REQUIRED: Configure these values for your Proxmox environment
+# Get API token: Proxmox > Datacenter > API Tokens > Add Token
+# Format: user@realm!token-name=token-value
+# Example: terraform@pve!terraform-token=12345678-abcd-efgh-ijkl-mnopqrstuvwx
+# SECURITY: Use environment variable instead:
+#   export TF_VAR_proxmox_api_token="terraform@pve!terraform-token=..."
+# SECURITY: Or use OpenTofu CLI:
+#   tofu apply -var="proxmox_api_token=terraform@pve!terraform-token=..."
+# -----------------------------------------------------------------------------
+
+proxmox_endpoint  = "https://192.168.1.100:8006/"  # Replace with your Proxmox IP
+proxmox_api_token = "terraform@pve!terraform-token=YOUR_TOKEN_HERE"  # REQUIRED: Replace with your actual token
+proxmox_user      = "terraform"  # SSH user on Proxmox host
+
+# AWS S3 Backend Configuration (optional, for state file backup)
+aws_region  = "eu-west-1"  # AWS region for S3 backend (change to your region)
+aws_profile = "default"       # AWS profile to use (change to your profile name)
+
+# Passphrase file location for state encryption (optional)
+passphrase = "~/home/user/state_passphrase"  # Path to file containing encryption passphrase
+
+# Connection Options
+connection_option_insecure = false  # Set to false for production (requires proper certificates)
+
+# TLS/SSL certificate path (optional)
+# tls_cert_path = "/path/to/cert.pem"
+
+# SSH options
+ssh_agent_option = true  # Use SSH agent for authentication
+
+# --------------------------------------------------------------------------
+# Infrastructure Configuration
+# --------------------------------------------------------------------------
+
+proxmox_node_name = "pve"  # Name of Proxmox node hosting the VM
+
+# --------------------------------------------------------------------------
+# VM Identity Configuration
+# --------------------------------------------------------------------------
+
+vm_id          = 110  # Use a different VM ID in your environment
+vm_name        = "opensuseLeap16-workstation"
+vm_description = "OpenSUSE Leap 16 workstation with GPU passthrough, managed by OpenTofu"
+vm_tags        = ["tofu-managed", "workstation", "gpu-passthrough"]
+
+# --------------------------------------------------------------------------
+# VM Lifecycle Configuration
+# --------------------------------------------------------------------------
+
+vm_on_boot         = true   # Start VM when Proxmox host boots
+vm_started         = true   # VM should be running after deployment
+vm_stop_on_destroy = false  # Don't stop VM when destroying infrastructure (safe)
+vm_protection      = false  # Set to true to prevent accidental deletion
+
+# --------------------------------------------------------------------------
+# VM Startup Order and Timing
+# --------------------------------------------------------------------------
+
+vm_startup_order      = 4   # Startup priority (higher = earlier)
+vm_startup_up_delay   = 10  # Delay before next VM starts (seconds)
+vm_startup_down_delay = 10  # Delay before shutdown (seconds)
+
+# --------------------------------------------------------------------------
+# BIOS and Boot Configuration
+# IMPORTANT: For GPU passthrough, use OVMF (UEFI) BIOS
+# --------------------------------------------------------------------------
+
+vm_bios         = "ovmf"           # OVMF for UEFI boot (required for GPU passthrough)
+vm_machine_type = "q35"            # q35 for modern PCIE support
+vm_boot_order   = ["scsi0", "ide2", "net0"]  # Boot priority: disk > cdrom > network
+
+# --------------------------------------------------------------------------
+# CPU Configuration
+# High-performance CPU setup for workstation use
+# --------------------------------------------------------------------------
+
+vm_cpu_cores        = 2        # Number of CPU cores
+vm_cpu_sockets      = 1        # Number of CPU sockets (usually 1)
+vm_cpu_type         = "host"   # "host" for maximum performance passthrough
+vm_cpu_architecture = ""       # CPU architecture (usually empty for auto)
+vm_cpu_hotplugged   = 0        # Hotplugged cores (0 = disabled)
+vm_cpu_limit        = 0        # CPU limit in percent (0 = unlimited)
+vm_cpu_units        = 1024     # CPU units for quotas
+vm_cpu_numa         = false    # NUMA support (false for single-node systems)
+
+# Hyper-V enlightenments and CPU feature flags for better performance
+# These flags improve Windows 11 and Linux VM performance significantly
+vm_kvm_arguments = "-cpu 'host,hv_ipi,hv_relaxed,hv_reset,hv_runtime,hv_spinlocks=0x1fff,hv_stimer,hv_synic,hv_time,hv_vapic,hv_vpindex,kvm=off,+kvm_pv_eoi,+kvm_pv_unhalt'"
+
+# --------------------------------------------------------------------------
+# Memory Configuration
+# This is for a 6-core workstation; adjust for your system
+# --------------------------------------------------------------------------
+
+vm_memory_dedicated      = 24576  # 24 GB dedicated memory (minimum recommended with GPU)
+vm_memory_floating       = 16384  # 16 GB max memory with ballooning (over-commit safe)
+vm_memory_shared         = 0      # Shared memory pages (usually 0)
+vm_memory_keep_hugepages = false  # Keep huge pages during reboot
+
+# --------------------------------------------------------------------------
+# QEMU Guest Agent Configuration
+# Enables advanced VM features like graceful shutdown, IP detection, etc.
+# --------------------------------------------------------------------------
+
+qemu_agent_enabled = true
+qemu_agent_timeout = "15m"
+qemu_agent_trim    = false
+
+# --------------------------------------------------------------------------
+# EFI Disk Configuration
+# Required for OVMF (UEFI) boot support
+# --------------------------------------------------------------------------
+
+vm_efi_disk_datastore_id      = "local-lvm"   # Storage location (matching vm_disk_datastore_id)
+vm_efi_disk_file_format       = "raw"         # Use raw format for better performance
+vm_efi_disk_type              = "4m"          # EFI firmware type (4m for most systems)
+vm_efi_disk_pre_enrolled_keys = true          # Include Secure Boot keys
+
+# --------------------------------------------------------------------------
+# Main Boot Disk Configuration
+# High-performance SSD configuration with io_uring for modern I/O
+# --------------------------------------------------------------------------
+
+vm_disk_datastore_id = "local-lvm"    # Storage location (e.g., "local-zfs", "pve-ceph")
+vm_disk_interface    = "scsi0"        # SCSI interface for better performance
+vm_disk_size         = 150            # Disk size in GB (minimum 80GB for OpenSUSE + apps)
+vm_disk_file_format  = "raw"          # raw format for best performance
+vm_disk_aio          = "io_uring"     # io_uring for latest I/O performance
+vm_disk_cache        = "writeback"    # writeback cache (requires safe shutdown)
+vm_disk_discard      = "on"           # DISCARD for SSD trim support
+vm_disk_iothread     = true           # Dedicated IO thread for better performance
+vm_disk_ssd          = false          # Set to true if using SSD
+vm_disk_backup       = true           # Include disk in backups
+vm_disk_replicate    = true           # Replicate to backup nodes if available
+
+vm_scsi_hardware = "virtio-scsi-single"  # SCSI controller type
+
+# --------------------------------------------------------------------------
+# Network Configuration
+# Default bridge configuration for home lab
+# --------------------------------------------------------------------------
+
+vm_network_bridge       = "vmbr0"              # Virtual bridge (usually vmbr0)
+vm_network_mac_address  = "5E:18:8F:A2:7C:41"  # Example MAC (auto-generated if empty)
+vm_network_model        = "virtio"             # virtio for best performance
+vm_network_queues       = 6                    # Match CPU cores
+vm_network_enabled      = true
+vm_network_firewall     = false                # Usually false in home lab
+vm_network_disconnected = false
+vm_network_mtu          = 0                    # 0 = standard 1500
+vm_network_rate_limit   = 0                    # 0 = unlimited
+
+# --------------------------------------------------------------------------
+# Operating System Configuration
+# l26 = Linux Kernel 2.6+, which covers most Linux distributions
+# --------------------------------------------------------------------------
+
+vm_os_type = "l26"
+
+# --------------------------------------------------------------------------
+# VGA and Display Configuration
+# GPU passthrough disables default VGA, so set to "none"
+# Use Spice or VNC for remote console access
+# --------------------------------------------------------------------------
+
+vm_vga_type      = "none"   # Disable VGA since GPU is passed through
+vm_vga_memory    = 16       # Ignored when type = none
+vm_tablet_device = true     # Improve mouse handling in console
+
+# --------------------------------------------------------------------------
+# SMBIOS Configuration
+# Hardware identification strings visible to the guest OS
+# SECURITY NOTE: UUIDs and serials are unique identifiers, keep them secret
+# --------------------------------------------------------------------------
+
+vm_smbios_manufacturer = "American Megatrends Inc."
+vm_smbios_serial       = "CHANGE_TO_YOUR_SERIAL"           # Unique serial number
+vm_smbios_uuid         = "CHANGE_TO_YOUR_UUID"  # Change this to a new UUID
+vm_smbios_version      = "5602"
+
+# To generate a new UUID:
+# Linux/macOS: uuidgen
+# Windows: New-Guid | Select-Object Guid
+# Online: https://www.uuidgenerator.net/
+
+# --------------------------------------------------------------------------
+# GPU PASSTHROUGH CONFIGURATION (AMD/Intel GPU)
+# REQUIRED: Run these commands on Proxmox host to find your GPU:
+#
+# List all PCIe devices:
+#   lspci | grep -E "VGA|Audio"
+#
+# Example output:
+#   0b:00.0 VGA compatible controller: AMD/ATI Polaris 20 [Radeon RX 580 2048M]
+#   0e:00.0 Audio device: ATI Technologies Inc. Device 5b3c
+#   0e:00.4 PCI bridge: ATI Technologies Inc. Device 5b3c
+#
+# Get Proxmox format (BUS:DEVICE.FUNCTION):
+#   0b:00.0 → "0000:0b:00"
+#
+# GPU Audio Device (if available):
+#   0e:00.4 → "0000:0e:00.4"
+#
+# IMPORTANT: You MUST update these values for your GPU!
+# --------------------------------------------------------------------------
+
+vm_hostpci0_id     = "0000:09:00"      # GPU device ID - REPLACE WITH YOUR GPU (e.g., lspci | grep VGA)
+vm_hostpci0_pcie   = true              # Enable PCIe (modern standard)
+vm_hostpci0_rombar = true              # Include GPU BIOS ROM
+vm_hostpci0_xvga   = true              # Set as primary VGA output
+
+# GPU Audio Controller (optional)
+vm_hostpci4_id     = "0000:09:00.1"    # Audio device ID - REPLACE IF YOUR GPU HAS AUDIO
+vm_hostpci4_pcie   = false             # Audio typically doesn't use PCIe
+vm_hostpci4_rombar = true
+vm_hostpci4_xvga   = false             # Not a VGA device
+
+# --------------------------------------------------------------------------
+# USB DEVICE PASSTHROUGH CONFIGURATION
+# REQUIRED: Run these commands on Proxmox host to find your USB devices:
+#
+# List all USB devices by vendor:product ID:
+#   lsusb
+#
+# Example output:
+#   Bus 001 Device 003: ID 413c:2514 Dell Computer Corp. Keyboard
+#   Bus 004 Device 002: ID 046d:c328 Logitech, Inc. USB Optical Mouse
+#
+# Proxmox USB ID format: vendorid:productid (hex)
+# Examples:
+#   Dell Keyboard:    "413c:2514"
+#   Logitech Mouse:   "046d:c328"
+#
+# Alternatively, use hub port format: "BUS-PORT"
+# Example: "4-2.4" (Bus 4, Port 2.4)
+#
+# NOTE: If you don't use these devices, you can set them to empty strings ""
+# --------------------------------------------------------------------------
+
+# USB Device 1: Example Keyboard
+# Used for: Keyboard input to VM
+vm_usb_device_1_host = "1a86:7523"  # Example USB keyboard (replace with lsusb output)
+vm_usb_device_1_usb3 = false        # USB 2.0 is sufficient for keyboard
+
+# USB Device 2: Example Mouse
+# Used for: Mouse input to VM
+vm_usb_device_2_host = "18f8:0f99"  # Example USB mouse (replace with lsusb output)
+vm_usb_device_2_usb3 = false        # USB 2.0
+
+# USB Device 3: Example Storage Device
+# Used for: USB storage device
+vm_usb_device_3_host = "0951:1666"  # Example Kingston USB drive (replace with lsusb output)
+vm_usb_device_3_usb3 = true         # USB 3.0 if available
+
+# USB Device 4: Additional Device or leave empty
+# Used for: Additional peripheral
+vm_usb_device_4_host = ""  # Leave empty if not used or add your device
+vm_usb_device_4_usb3 = false
+
+# --------------------------------------------------------------------------
+# Timeout Configuration
+# Adjust these if you experience timeout errors during deployment
+# --------------------------------------------------------------------------
+
+vm_timeout_create      = 1800   # VM creation (30 minutes)
+vm_timeout_clone       = 1800   # VM cloning (30 minutes)
+vm_timeout_start_vm    = 1800   # VM startup (30 minutes)
+vm_timeout_shutdown_vm = 1800   # VM shutdown (30 minutes)
+vm_timeout_stop_vm     = 300    # VM stop (5 minutes)
+vm_timeout_reboot      = 1800   # VM reboot (30 minutes)
+vm_timeout_move_disk   = 1800   # Disk movement (30 minutes)
+vm_timeout_migrate     = 1800   # VM migration (30 minutes)
+
+# =============================================================================
+# DEPLOYMENT INSTRUCTIONS
+# =============================================================================
+#
+# Step 1: Fill in all the values above (especially GPU and USB device IDs)
+# Step 2: Save as terraform.tfvars (do NOT commit to git)
+# Step 3: Initialize OpenTofu:
+#   tofu init
+#
+# Step 4: Review changes:
+#   tofu plan
+#
+# Step 5: Apply configuration:
+#   tofu apply
+#
+# Step 6: Monitor deployment:
+#   tofu output  # View outputs including connection info
+#
+# Step 7: Access the VM:
+#   Via Proxmox Console: https://your-proxmox:8006/ > VM > Console
+#   Via SSH (after network is configured):
+#     ssh user@<vm-ip>
+#
+# =============================================================================

@@ -5,12 +5,14 @@ This guide shows how to use the `update_packages.yml` playbook in real-world aut
 ## Overview: Two Patterns
 
 ### Pattern 1: Pure Automation (Recommended for Homelab/Semaphore)
+
 - ✅ Runs automatically on schedule
 - ✅ No manual approval needed
 - ✅ Logs everything
 - ✅ Ideal for non-critical infrastructure
 
 ### Pattern 2: Scheduled with Safety Windows
+
 - ✅ Runs automatically during maintenance window
 - ✅ Time-controlled reboots
 - ✅ Better for production
@@ -29,6 +31,7 @@ This guide shows how to use the `update_packages.yml` playbook in real-world aut
    - Environment: Leave default
 
 2. **Configure Environment Variables**:
+
    ```yaml
    reboot_enabled: false
    only_security_updates: false
@@ -51,7 +54,7 @@ tail -f /var/log/ansible-updates/*.log
 
 ### Real-World Example: Simple Homelab Schedule
 
-```
+```text
 Monday:    Nothing (maintenance window prep)
 Tuesday:   02:00 AM - Update all staging
 Wednesday: Monitor for issues
@@ -147,6 +150,7 @@ ansible-playbook -i inventory/staging.yml playbooks/maintenance/update_packages.
 ```
 
 **Why this approach?**
+
 - Group reboots prevent service loss
 - 1-hour gap between updates and reboots allows monitoring
 - Rolling restart pattern maintains service availability
@@ -159,7 +163,7 @@ This is how many cloud-native companies do it:
 
 ### Architecture
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │     Vulnerability Scanner (Daily)       │
 │  - Identifies security patches          │
@@ -280,6 +284,7 @@ ansible -i inventory.yml all -m shell -a "tail /var/log/ansible-updates/update-*
 ### Set Up Alerts
 
 **Elasticsearch + Kibana**:
+
 ```json
 {
   "alert": "PackageUpdateFailed",
@@ -289,6 +294,7 @@ ansible -i inventory.yml all -m shell -a "tail /var/log/ansible-updates/update-*
 ```
 
 **Simple Email Alert**:
+
 ```bash
 #!/bin/bash
 # In your Semaphore post-task hook
@@ -314,7 +320,7 @@ fi
 
 ## Security vs. Availability Trade-offs
 
-```
+```text
 High Security (Fast Patches)
         ↑
         │  Daily auto-updates
@@ -354,6 +360,7 @@ timeout: 600  # in playbook defaults
 ### Problem: Updates Not Running
 
 **Debug**:
+
 ```bash
 # Check Semaphore logs
 grep "update_packages" /var/log/semaphore/semaphore.log
@@ -399,6 +406,7 @@ This is how real DevOps teams do it. The playbook is now **properly automated**.
 ---
 
 References:
+
 - [CIS Patch Management Maturity](https://www.cisecurity.org/cis-benchmarks/)
 - [Red Hat Patch Management](https://www.redhat.com/en/engage/patch-management-2023)
 - [Netflix Tech Blog - Automation](https://netflixtechblog.com/)

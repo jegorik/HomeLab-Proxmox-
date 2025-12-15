@@ -41,6 +41,15 @@ examples and find concise guidance for each component.
     - One-time setup script: `scripts/bash/setup/proxmox_fcos_storage_setup.sh`
     - SSH key-only authentication (no passwords)
     - Static IP or DHCP network configuration
+  - [`opensuseLeap/`](terraform/opensuseLeap/) — OpenSUSE Leap 16 workstation with GPU passthrough.
+    - High-performance workstation with full GPU support (AMD/Intel/NVIDIA)
+    - USB device passthrough for peripherals and storage
+    - UEFI boot with OVMF firmware and QEMU Guest Agent
+    - io_uring disk I/O, writeback caching, dedicated IO threads
+    - Hyper-V enlightenments for CPU performance optimization
+    - State file encryption with PBKDF2-AES-GCM
+    - AWS S3 backend support for remote state storage
+    - Ideal for gaming, AI/ML development, multimedia editing
 
 ### Automation Scripts
 
@@ -112,8 +121,40 @@ tofu apply
 ssh core@<vm-ip>
 ```
 
+**OpenSUSE Leap 16 workstation with GPU passthrough:**
+
+```bash
+# Step 1: Identify your GPU and USB devices
+lspci | grep -E "VGA|Audio"  # Find GPU device ID (e.g., 0b:00)
+lsusb                        # Find USB device IDs (e.g., 046d:c328)
+
+cd terraform/opensuseLeap
+
+# Step 2: Create configuration with your hardware IDs
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Update:
+                       # - GPU device ID: vm_hostpci0_id
+                       # - USB device IDs: vm_usb_device_*_host
+                       # - Proxmox credentials and endpoint
+
+# Step 3: Initialize and deploy
+tofu init
+tofu plan
+tofu apply
+
+# Step 4: Access the VM
+ssh user@<vm-ip>
+
+# Step 5: Install GPU drivers in the VM
+# For AMD: sudo zypper install amdgpu-pro
+# For NVIDIA: Follow NVIDIA driver installation for OpenSUSE
+```
+
 > **Note:** Fedora CoreOS uses Ignition delivered via Proxmox Cloud-Init vendor data.
 > This eliminates the need for complex kvm_arguments or Ansible post-provisioning.
+>
+> **GPU Passthrough**: Requires IOMMU enabled in BIOS and Proxmox.
+> See [opensuseLeap/README.md](terraform/opensuseLeap/README.md) for detailed GPU setup.
 
 **Prerequisites:**
 
