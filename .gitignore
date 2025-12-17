@@ -1,4 +1,10 @@
 ### Terraform template
+
+# JetBrains IDEs (IntelliJ, PyCharm, etc.)
+.idea/
+*.iml
+*.iws
+
 # Local .terraform directories
 **/.terraform/*
 
