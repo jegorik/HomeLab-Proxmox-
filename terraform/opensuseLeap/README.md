@@ -1,25 +1,27 @@
-# OpenSUSE Leap 16 Workstation VM - OpenTofu Infrastructure
+# OpenSUSE Leap 15.6 Workstation VM - OpenTofu Infrastructure
 
 [![OpenTofu](https://img.shields.io/badge/OpenTofu-1.6+-blue?style=flat&logo=opentofu)](https://opentofu.org/)
 [![Proxmox](https://img.shields.io/badge/Proxmox-8.x-orange?style=flat&logo=proxmox)](https://www.proxmox.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
 
-A comprehensive OpenTofu configuration for deploying high-performance OpenSUSE Leap 16 workstations with GPU and USB device passthrough on Proxmox VE infrastructure. Ideal for workstations requiring maximum performance for development, AI/ML workflows, gaming, or multimedia creation.
+A comprehensive OpenTofu configuration for deploying high-performance OpenSUSE Leap 15.6 workstations with GPU and USB device passthrough on Proxmox VE infrastructure. Includes cloud-init automated provisioning, SSH key management, and multi-user account creation.
 
 ## Overview
 
-This configuration manages a sophisticated OpenSUSE Leap 16 virtual machine with the following characteristics:
+This configuration manages a sophisticated OpenSUSE Leap 15.6 virtual machine with the following characteristics:
 
 **Key Features:**
 
-- ✅ **GPU Passthrough**: Full AMD/NVIDIA GPU support for high-performance graphics and compute workloads
-- ✅ **USB Passthrough**: Direct passthrough of USB peripherals (keyboards, mice, storage devices)
-- ✅ **UEFI Boot**: Modern OVMF firmware for secure and efficient booting
+- ✅ **Cloud-Init Provisioning**: Automated user and system configuration at VM creation
+- ✅ **Multi-User Management**: Ansible service account + admin user with SSH key authentication
+- ✅ **Automated Cloud Image Download**: Fetches and caches openSUSE cloud image in Proxmox storage
+- ✅ **SSH Key-Based Authentication**: Secure access without password authentication
+- ✅ **GPU Passthrough**: Full AMD/NVIDIA GPU support for high-performance workloads
+- ✅ **USB Passthrough**: Direct passthrough of USB peripherals
+- ✅ **UEFI Boot**: Modern OVMF firmware for secure booting
 - ✅ **High Performance**: io_uring disk I/O, writeback caching, dedicated IO threads
-- ✅ **QEMU Guest Agent**: Advanced VM management, IP detection, graceful shutdown
-- ✅ **CPU Optimization**: Host passthrough with Hyper-V enlightenments for maximum performance
-- ✅ **State Encryption**: Built-in PBKDF2-AES-GCM encryption for OpenTofu state files
-- ✅ **Multi-Storage Support**: Flexible storage backend configuration (ZFS, Ceph, local storage)
+- ✅ **QEMU Guest Agent**: Advanced VM management and IP detection
+- ✅ **State Encryption**: PBKDF2-AES-GCM encryption for OpenTofu state files
 
 **Recommended Use Cases:**
 
@@ -83,6 +85,74 @@ sudo update-initramfs -u -k all  # or sudo mkinitcpio -P for Arch
    - User: `terraform`
    - Token ID: `terraform-token`
    - Copy the full token string (format: `user@realm!token-id=secret`)
+
+### Cloud-Init and Storage Prerequisites
+
+**⚠️ IMPORTANT: Manual Administrator Configuration Required**
+
+Before deploying VMs with cloud-init provisioning, the Proxmox administrator must:
+
+1. **Enable Snippets Content Type on Storage**
+   
+   Cloud-init requires the storage to have "snippets" content type enabled. Execute on Proxmox host:
+
+   ```bash
+   # Enable snippets on local storage
+   pvesm set local --content iso,vztmpl,snippets
+   
+   # Verify it's enabled
+   pvesm status | grep snippets
+   ```
+
+   **GUI Alternative:**
+   - Proxmox UI > Datacenter > Storage > [Select Storage] > Edit
+   - Content section: Enable "Snippets" checkbox
+   - Click Save
+
+2. **Verify SSH Access to Proxmox Host**
+   
+   OpenTofu needs SSH access to upload cloud-init snippets. Ensure:
+   - SSH is enabled on Proxmox host (usually port 22)
+   - SSH key-based authentication is configured
+   - Test connection: `ssh terraform@your-proxmox-host`
+
+### SSH Key Preparation (for Cloud-Init Users)
+
+Before deploying with `cloudinit_enabled = true`, generate SSH keys for automated management:
+
+```bash
+# Generate Ansible service account SSH key (ed25519 recommended)
+ssh-keygen -t ed25519 -f ~/.ssh/ansible_key -N "" -C "ansible@homelab"
+
+# Generate Admin user SSH key
+ssh-keygen -t ed25519 -f ~/.ssh/admin_key -N "" -C "admin@homelab"
+
+# Verify keys were created
+ls -la ~/.ssh/ansible_key* ~/.ssh/admin_key*
+
+# Display public keys (needed for terraform.tfvars)
+cat ~/.ssh/ansible_key.pub
+cat ~/.ssh/admin_key.pub
+```
+
+**Security Best Practices:**
+
+```bash
+# Set proper file permissions (important!)
+chmod 600 ~/.ssh/ansible_key ~/.ssh/admin_key
+chmod 644 ~/.ssh/ansible_key.pub ~/.ssh/admin_key.pub
+
+# Verify permissions
+ls -la ~/.ssh/ansible_key* ~/.ssh/admin_key*
+
+# Check key fingerprint for verification
+ssh-keygen -l -f ~/.ssh/ansible_key.pub
+ssh-keygen -l -f ~/.ssh/admin_key.pub
+
+# Store keys securely (outside of home directory for extra security)
+# Example: /secure/location/ansible_key, /secure/location/admin_key
+# Then reference in terraform.tfvars with full paths
+```
 
 ### Local Requirements
 
@@ -243,7 +313,149 @@ ssh user@<vm-ip>
 # Get VM IP from Proxmox GUI or:
 tofu output vm_ipv4_addresses
 ```
+## Cloud-Init Setup Guide
 
+### Overview
+
+This configuration supports automated VM provisioning via cloud-init, which:
+- Downloads openSUSE Leap 15.6 cloud image automatically
+- Creates Ansible service account for automation
+- Creates administrative user with sudo privileges
+- Configures SSH key authentication (no passwords)
+- Hardens SSH server configuration
+- Installs essential packages
+- Configures system services
+
+### Enabling Cloud-Init Provisioning
+
+To use cloud-init features, ensure these settings in `terraform.tfvars`:
+
+```hcl
+# Enable automatic VM creation and cloud-init setup
+vm_create_new       = true
+
+# Enable cloud-init provisioning
+cloudinit_enabled   = true
+
+# Download cloud image automatically
+cloud_image_download = true
+
+# SSH keys for user accounts (must exist)
+ansible_ssh_key_path = "~/.ssh/ansible_key.pub"
+admin_ssh_key_path   = "~/.ssh/admin_key.pub"
+
+# Admin username
+cloudinit_admin_username = "admin"
+
+# Network configuration
+cloudinit_use_dhcp  = true  # or false for static IP
+cloudinit_dns_domain = "local"
+cloudinit_dns_servers = []  # Empty for defaults
+```
+
+### Cloud-Init User Accounts Created
+
+**1. Ansible Service Account**
+- **Username:** `ansible`
+- **Groups:** `wheel` (sudoers)
+- **SSH Keys:** From `ansible_ssh_key_path` variable
+- **Sudo:** Passwordless (for Ansible automation)
+- **Password:** Locked (no password login)
+- **Use Case:** Automated provisioning, configuration management
+
+**2. Administrative User Account**
+- **Username:** Configurable via `cloudinit_admin_username` (default: `admin`)
+- **Groups:** `wheel`, `docker`, `libvirt`, `kvm`
+- **SSH Keys:** From `admin_ssh_key_path` variable
+- **Sudo:** Password-required (for security)
+- **Password:** Disabled for SSH (use admin_ssh_key only)
+- **Use Case:** System administration, maintenance, troubleshooting
+
+**3. Default openSUSE User**
+- **Username:** `opensuse`
+- **Groups:** As provided by cloud image
+- **Access:** Via cloud-init console if needed
+
+### Testing Cloud-Init Provisioning
+
+After VM creation, test the provisioned users:
+
+```bash
+# SSH as Ansible user (passwordless sudo works)
+ssh -i ~/.ssh/ansible_key ansible@<vm-ip>
+
+# Test passwordless sudo
+ssh -i ~/.ssh/ansible_key ansible@<vm-ip> "sudo whoami"
+# Should output: root
+
+# SSH as Admin user
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
+
+# Test password-required sudo
+ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo whoami"
+# Should prompt for password, then output: root
+
+# Check cloud-init status
+ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo cloud-init status"
+# Should show: status: done
+
+# View cloud-init logs
+ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo tail -50 /var/log/cloud-init.log"
+```
+
+### Cloud-Init Troubleshooting
+
+**Cloud-Init Not Running:**
+
+```bash
+# SSH to VM as admin user
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
+
+# Check cloud-init status
+sudo cloud-init status --long
+
+# View logs
+sudo cat /var/log/cloud-init.log
+sudo cat /var/log/cloud-init-output.log
+
+# Check if packages were installed
+rpm -qa | grep qemu-guest-agent
+
+# Verify users were created
+id ansible
+id admin
+```
+
+**SSH Key Not Working:**
+
+```bash
+# Verify key file permissions (IMPORTANT)
+ls -la ~/.ssh/ansible_key ~/.ssh/admin_key
+# Should show: -rw------- (600 for private keys)
+
+# Check SSH public key in VM
+ssh -i ~/.ssh/admin_key admin@<vm-ip> "cat ~/.ssh/authorized_keys"
+
+# Verify key format
+ssh-keygen -l -f ~/.ssh/ansible_key.pub
+
+# If key path is wrong, check terraform.tfvars
+grep "ssh_key_path" terraform.tfvars
+```
+
+**Network Configuration Issues:**
+
+```bash
+# Test DHCP is working
+ip addr show
+ip route show
+
+# If static IP is stuck, check cloud-init config
+grep -A5 "ip_config" cloud-init/user-config.yaml.tpl
+
+# View network configuration
+sudo cat /etc/sysconfig/network-scripts/ifcfg-eth0 # or equivalent
+```
 ## GPU Passthrough Configuration
 
 ### Discovering Your GPU
@@ -382,6 +594,67 @@ lsusb
 # Check for your devices:
 # Bus 001 Device 002: ID 18f8:0f99 Example Corp. USB Optical Mouse
 # Bus 001 Device 003: ID 1a86:7523 Example Corp. Keyboard
+```
+
+## Cloud Image Update Process
+
+### Checking for New openSUSE Leap 15.6 Cloud Image Versions
+
+The cloud image is periodically updated by openSUSE with security patches and updates. To check for new versions:
+
+```bash
+# Check the official openSUSE repository for new images
+curl -s "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_15.6/images/" | \
+  grep -o 'openSUSE-Leap-15.6.*\.qcow2' | head -5
+
+# Download and verify the latest SHA256 checksum
+cd /tmp
+wget -q "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_15.6/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2.sha256"
+cat openSUSE-Leap-15.6.x86_64-NoCloud.qcow2.sha256
+
+# Output example:
+# 75e6c617a898aed970dd52f2f67de87a6392fbf9ce30d9ead2b1dbf8f2f36194  openSUSE-Leap-15.6.x86_64-NoCloud.qcow2
+```
+
+### Updating Cloud Image in Your Configuration
+
+When a new cloud image version is available:
+
+1. **Get New Checksum:**
+   - Use the curl command above to retrieve the new SHA256
+   - Copy the 64-character hash
+
+2. **Update terraform.tfvars:**
+   ```bash
+   # Edit your configuration
+   nano terraform.tfvars
+   
+   # Update the checksum value:
+   cloud_image_checksum = "NEW_SHA256_HASH_HERE"
+   ```
+
+3. **Test the Update:**
+   ```bash
+   # Verify the configuration is valid
+   tofu validate
+   
+   # See what will change (should just be image download)
+   tofu plan
+   
+   # Apply if looks good
+   tofu apply
+   ```
+
+4. **Deploy New VMs:**
+   - The new image will be downloaded to Proxmox storage
+   - Set `vm_create_new = true` and deploy new VMs to use the updated image
+   - Existing VMs will continue to use their current image
+
+**Note:** The Terraform configuration includes `lifecycle { ignore_changes = [checksum] }` in cloud-image.tf. This prevents accidental re-downloads if the remote checksum changes. To force an image re-download:
+
+```bash
+# Delete the image from Proxmox storage manually, then
+tofu apply -replace=proxmox_virtual_environment_download_file.opensuse_cloud_image
 ```
 
 ## Terraform Variables

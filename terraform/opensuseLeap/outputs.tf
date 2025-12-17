@@ -1,5 +1,5 @@
 # =============================================================================
-# OpenSUSE Leap 16 VM Outputs
+# OpenSUSE Leap 15.6 VM Outputs
 # =============================================================================
 # This file defines output values that are displayed after successful
 # deployment and can be referenced by other Terraform/OpenTofu configurations.
@@ -11,22 +11,22 @@
 
 output "vm_id" {
   description = "The ID of the created virtual machine"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.vm_id
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].vm_id, null)
 }
 
 output "vm_name" {
   description = "The name of the virtual machine"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.name
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].name, null)
 }
 
 output "vm_node" {
   description = "The Proxmox node hosting the VM"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.node_name
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].node_name, null)
 }
 
 output "vm_tags" {
   description = "Tags assigned to the VM"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.tags
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].tags, null)
 }
 
 # -----------------------------------------------------------------------------
@@ -35,25 +35,25 @@ output "vm_tags" {
 
 output "vm_ipv4_addresses" {
   description = "IPv4 addresses assigned to the VM"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.ipv4_addresses
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].ipv4_addresses, [])
   sensitive   = true  # Contains potentially sensitive network information
 }
 
 output "vm_ipv6_addresses" {
   description = "IPv6 addresses assigned to the VM"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.ipv6_addresses
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].ipv6_addresses, [])
   sensitive   = true  # Contains potentially sensitive network information
 }
 
 output "vm_mac_addresses" {
   description = "MAC addresses of VM network interfaces"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.mac_addresses
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].mac_addresses, [])
   sensitive   = true  # MAC addresses should not be displayed in logs
 }
 
 output "vm_network_interface_names" {
   description = "Network interface names in the guest OS"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.network_interface_names
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].network_interface_names, [])
 }
 
 # -----------------------------------------------------------------------------
@@ -62,17 +62,17 @@ output "vm_network_interface_names" {
 
 output "vm_cpu_cores" {
   description = "Number of CPU cores allocated"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.cpu[0].cores
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].cpu[0].cores, null)
 }
 
 output "vm_memory_dedicated" {
   description = "Dedicated memory in MB"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.memory[0].dedicated
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].memory[0].dedicated, null)
 }
 
 output "vm_memory_floating" {
   description = "Floating memory (balloon) in MB"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.memory[0].floating
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].memory[0].floating, null)
 }
 
 # -----------------------------------------------------------------------------
@@ -81,12 +81,12 @@ output "vm_memory_floating" {
 
 output "vm_started" {
   description = "Whether the VM is currently running"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.started
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].started, null)
 }
 
 output "vm_template" {
   description = "Whether this is a template"
-  value       = proxmox_virtual_environment_vm.opensuseLeap16.template
+  value       = try(proxmox_virtual_environment_vm.opensuseLeap[0].template, null)
 }
 
 # -----------------------------------------------------------------------------
@@ -109,15 +109,15 @@ output "vm_audio_pci_id" {
 
 output "connection_info" {
   description = "Summary of VM connection information"
-  value = {
-    vm_id  = proxmox_virtual_environment_vm.opensuseLeap16.vm_id
-    name   = proxmox_virtual_environment_vm.opensuseLeap16.name
-    node   = proxmox_virtual_environment_vm.opensuseLeap16.node_name
-    ipv4   = try(proxmox_virtual_environment_vm.opensuseLeap16.ipv4_addresses[1][0], "No IP assigned")
-    status = proxmox_virtual_environment_vm.opensuseLeap16.started ? "running" : "stopped"
+  value = try({
+    vm_id  = proxmox_virtual_environment_vm.opensuseLeap[0].vm_id
+    name   = proxmox_virtual_environment_vm.opensuseLeap[0].name
+    node   = proxmox_virtual_environment_vm.opensuseLeap[0].node_name
+    ipv4   = try(proxmox_virtual_environment_vm.opensuseLeap[0].ipv4_addresses[1][0], "No IP assigned")
+    status = proxmox_virtual_environment_vm.opensuseLeap[0].started ? "running" : "stopped"
     gpu    = var.vm_hostpci0_id
     agent  = var.qemu_agent_enabled ? "enabled" : "disabled"
-  }
+  }, null)
   sensitive = true  # Contains network addresses and VM configuration details
 }
 

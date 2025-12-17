@@ -1,7 +1,7 @@
 # =============================================================================
-# OpenSUSE Leap 16 Virtual Machine Configuration
+# OpenSUSE Leap 15.6 Virtual Machine Configuration
 # =============================================================================
-# This configuration manages an OpenSUSE Leap 16 workstation with GPU
+# This configuration manages an OpenSUSE Leap 15.6 workstation with GPU
 # passthrough and advanced hardware configuration for high-performance use.
 #
 # Key Features:
@@ -13,18 +13,19 @@
 # - CPU Optimization (host passthrough, Hyper-V enlightenments)
 # - State File Encryption (PBKDF2-AES-GCM)
 #
-# IMPORTANT: To import an existing VM under OpenTofu management:
+# IMPORTANT: To manage an existing VM under OpenTofu management:
 # 1. Configure variables for the correct node_name and vm_id
-# 2. Run: tofu import proxmox_virtual_environment_vm.opensuseLeap16 <vm_id>
-# 3. Run: tofu plan to see the configuration drift
-# 4. Update this file to match the actual configuration
+# 2. If VM already exists in Proxmox, set: vm_create_new = false in terraform.tfvars
+# 3. Run: tofu plan to see if configuration matches
+# 4. For new VMs, set: vm_create_new = true (creates with cloud-init provisioning)
 # ============================================================================
 
 # -----------------------------------------------------------------------------
-# Main VM Resource: openSUSE Leap 16 Workstation
+# Main VM Resource: openSUSE Leap 15.6 Workstation
 # -----------------------------------------------------------------------------
 
-resource "proxmox_virtual_environment_vm" "opensuseLeap16" {
+resource "proxmox_virtual_environment_vm" "opensuseLeap" {
+  count = var.vm_create_new ? 1 : 0
   # -------------------------------------------------------------------------
   # VM Identity and Lifecycle
   # -------------------------------------------------------------------------
@@ -140,12 +141,15 @@ resource "proxmox_virtual_environment_vm" "opensuseLeap16" {
   # -------------------------------------------------------------------------
   # Main Boot Disk
   # -------------------------------------------------------------------------
+  # For new VMs with cloud-init: uses downloaded cloud image
+  # For existing VMs: creates empty disk (manual OS installation)
   # High-performance disk configuration with io_uring and writeback cache
 
   disk {
     datastore_id = var.vm_disk_datastore_id
     interface    = var.vm_disk_interface
-    size         = var.vm_disk_size
+    file_id      = var.vm_create_new && var.cloud_image_download ? proxmox_virtual_environment_download_file.opensuse_cloud_image[0].id : null
+    size         = var.vm_create_new ? null : var.vm_disk_size
     file_format  = var.vm_disk_file_format
 
     # Performance optimizations
@@ -180,6 +184,34 @@ resource "proxmox_virtual_environment_vm" "opensuseLeap16" {
     disconnected = var.vm_network_disconnected
     mtu          = var.vm_network_mtu
     rate_limit   = var.vm_network_rate_limit
+  }
+
+  # -------------------------------------------------------------------------
+  # Cloud-Init Configuration (for new VM provisioning)
+  # -------------------------------------------------------------------------
+  # Configures cloud-init for automated user provisioning and system setup
+
+  dynamic "initialization" {
+    for_each = var.cloudinit_enabled && var.vm_create_new ? [1] : []
+
+    content {
+      datastore_id = var.vm_disk_datastore_id
+      interface    = "ide2"
+
+      dns {
+        domain  = var.cloudinit_dns_domain
+        servers = var.cloudinit_dns_servers
+      }
+
+      ip_config {
+        ipv4 {
+          address = var.cloudinit_use_dhcp ? "dhcp" : var.cloudinit_ipv4_address
+          gateway = var.cloudinit_use_dhcp ? null : var.cloudinit_ipv4_gateway
+        }
+      }
+
+      user_data_file_id = proxmox_virtual_environment_file.cloud_init_user_config[0].id
+    }
   }
 
   # -------------------------------------------------------------------------

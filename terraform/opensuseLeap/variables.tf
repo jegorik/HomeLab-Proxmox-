@@ -1,5 +1,5 @@
 # =============================================================================
-# OpenTofu/Terraform Variables for OpenSUSE Leap 16 VM
+# OpenTofu/Terraform Variables for OpenSUSE Leap 15.6 VM
 # =============================================================================
 # This file defines all configurable variables for the VM infrastructure.
 # Best practices:
@@ -81,7 +81,7 @@ variable "vm_id" {
 variable "vm_name" {
   description = "Name of the virtual machine"
   type        = string
-  default     = "opensuseLeap16"
+  default     = "opensuseLeap15-6"
 
   validation {
     condition     = can(regex("^[a-zA-Z0-9-]+$", var.vm_name))
@@ -98,10 +98,135 @@ variable "vm_tags" {
 variable "vm_description" {
   description = "Description of the virtual machine"
   type        = string
-  default     = "OpenSUSE Leap 16 workstation with GPU passthrough, managed by OpenTofu"
+  default     = "OpenSUSE Leap 15.6 workstation with GPU passthrough, managed by OpenTofu"
 }
 
-# -----------------------------------------------------------------------------
+# ============================================================================
+# VM Creation and Cloud-Init Control Variables
+# ============================================================================
+
+variable "vm_create_new" {
+  description = "Create a new VM (true) or manage existing VM (false). Set to true for new deployments, false for existing VMs"
+  type        = bool
+  default     = false
+}
+
+variable "cloud_image_download" {
+  description = "Download openSUSE Leap 15.6 cloud image to Proxmox storage if not present"
+  type        = bool
+  default     = true
+}
+
+variable "cloud_image_url" {
+  description = "URL to openSUSE Leap 15.6 cloud image (NoCloud format)"
+  type        = string
+  default     = "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_15.6/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
+  sensitive   = false
+}
+
+variable "cloud_image_checksum" {
+  description = "SHA256 checksum of openSUSE Leap 15.6 cloud image for verification"
+  type        = string
+  default     = "75e6c617a898aed970dd52f2f67de87a6392fbf9ce30d9ead2b1dbf8f2f36194"
+  sensitive   = false
+
+  validation {
+    condition     = can(regex("^[a-f0-9]{64}$", var.cloud_image_checksum)) || var.cloud_image_checksum == ""
+    error_message = "Cloud image checksum must be valid SHA256 hash (64 hex characters) or empty string to skip verification"
+  }
+}
+
+variable "cloud_image_checksum_algorithm" {
+  description = "Checksum algorithm for cloud image verification"
+  type        = string
+  default     = "sha256"
+
+  validation {
+    condition     = contains(["sha256", "sha512"], var.cloud_image_checksum_algorithm)
+    error_message = "Checksum algorithm must be 'sha256' or 'sha512'"
+  }
+}
+
+variable "cloudinit_enabled" {
+  description = "Enable cloud-init provisioning with user configuration (requires download_iso=true for new VMs)"
+  type        = bool
+  default     = true
+}
+
+variable "cloudinit_admin_username" {
+  description = "Name of administrative user to create (will have sudo privileges)"
+  type        = string
+  default     = "admin"
+
+  validation {
+    condition     = can(regex("^[a-z_][a-z0-9_-]{0,31}$", var.cloudinit_admin_username))
+    error_message = "Admin username must be valid Linux username (lowercase, 1-32 chars, start with letter or underscore)"
+  }
+}
+
+variable "ansible_ssh_key_path" {
+  description = "Path to Ansible service user SSH public key file (for automated management)"
+  type        = string
+  default     = "~/.ssh/ansible_key.pub"
+
+  validation {
+    condition     = var.ansible_ssh_key_path == "" || fileexists(var.ansible_ssh_key_path)
+    error_message = "Ansible SSH public key file not found. Generate with: ssh-keygen -t ed25519 -f ~/.ssh/ansible_key -N ''"
+  }
+}
+
+variable "admin_ssh_key_path" {
+  description = "Path to administrative user SSH public key file"
+  type        = string
+  default     = "~/.ssh/admin_key.pub"
+
+  validation {
+    condition     = var.admin_ssh_key_path == "" || fileexists(var.admin_ssh_key_path)
+    error_message = "Admin SSH public key file not found. Generate with: ssh-keygen -t ed25519 -f ~/.ssh/admin_key -N ''"
+  }
+}
+
+variable "cloudinit_dns_domain" {
+  description = "DNS search domain for cloud-init network configuration"
+  type        = string
+  default     = "local"
+}
+
+variable "cloudinit_dns_servers" {
+  description = "List of DNS servers for cloud-init network configuration (empty = use Proxmox defaults)"
+  type        = list(string)
+  default     = []
+}
+
+variable "cloudinit_use_dhcp" {
+  description = "Use DHCP for IP configuration (true) or static IP (false)"
+  type        = bool
+  default     = true
+}
+
+variable "cloudinit_ipv4_address" {
+  description = "Static IPv4 address with CIDR notation (e.g. 192.168.1.100/24). Required when cloudinit_use_dhcp=false"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.cloudinit_ipv4_address == "" || can(regex("^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}/[0-9]{1,2}$", var.cloudinit_ipv4_address))
+    error_message = "IPv4 address must be in CIDR format (e.g. 192.168.1.100/24) or empty for DHCP"
+  }
+}
+
+variable "cloudinit_ipv4_gateway" {
+  description = "IPv4 gateway address for static IP configuration. Required when cloudinit_use_dhcp=false"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.cloudinit_ipv4_gateway == "" || can(regex("^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$", var.cloudinit_ipv4_gateway))
+    error_message = "IPv4 gateway must be valid IP address (e.g. 192.168.1.1) or empty"
+  }
+}
+
+# ============================================================================---------------------------------------------------------------------
 # VM Lifecycle Variables
 # -----------------------------------------------------------------------------
 
