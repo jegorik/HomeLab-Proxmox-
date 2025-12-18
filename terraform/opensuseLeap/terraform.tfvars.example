@@ -60,8 +60,8 @@ proxmox_node_name = "pve"  # Name of Proxmox node hosting the VM
 # --------------------------------------------------------------------------
 
 vm_id          = 110  # Use a different VM ID in your environment
-vm_name        = "opensuseLeap16-workstation"
-vm_description = "OpenSUSE Leap 16 workstation with GPU passthrough, managed by OpenTofu"
+vm_name        = "opensuseLeap15.6-workstation"
+vm_description = "OpenSUSE Leap 15.6 workstation with GPU passthrough, managed by OpenTofu"
 vm_tags        = ["tofu-managed", "workstation", "gpu-passthrough"]
 
 # --------------------------------------------------------------------------

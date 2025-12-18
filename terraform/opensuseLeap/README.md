@@ -6,235 +6,300 @@
 
 A comprehensive OpenTofu configuration for deploying high-performance OpenSUSE Leap 15.6 workstations with GPU and USB device passthrough on Proxmox VE infrastructure. Includes cloud-init automated provisioning, SSH key management, and multi-user account creation.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Cloud-Init Setup](#cloud-init-setup)
+- [GPU Passthrough Configuration](#gpu-passthrough-configuration)
+- [USB Device Passthrough](#usb-device-passthrough)
+- [Configuration Variables](#configuration-variables)
+- [Outputs](#outputs)
+- [Known Issues](#known-issues)
+- [Troubleshooting](#troubleshooting)
+- [Performance Tuning](#performance-tuning)
+- [Security Considerations](#security-considerations)
+- [Maintenance](#maintenance)
+- [References](#references)
+
 ## Overview
 
-This configuration manages a sophisticated OpenSUSE Leap 15.6 virtual machine with the following characteristics:
+This OpenTofu/Terraform configuration creates enterprise-grade OpenSUSE Leap 15.6 virtual machines on Proxmox VE with advanced features for development, gaming, and AI/ML workloads.
 
-**Key Features:**
+### Architecture
 
-- ✅ **Cloud-Init Provisioning**: Automated user and system configuration at VM creation
-- ✅ **Multi-User Management**: Ansible service account + admin user with SSH key authentication
-- ✅ **Automated Cloud Image Download**: Fetches and caches openSUSE cloud image in Proxmox storage
-- ✅ **SSH Key-Based Authentication**: Secure access without password authentication
-- ✅ **GPU Passthrough**: Full AMD/NVIDIA GPU support for high-performance workloads
-- ✅ **USB Passthrough**: Direct passthrough of USB peripherals
-- ✅ **UEFI Boot**: Modern OVMF firmware for secure booting
-- ✅ **High Performance**: io_uring disk I/O, writeback caching, dedicated IO threads
-- ✅ **QEMU Guest Agent**: Advanced VM management and IP detection
-- ✅ **State Encryption**: PBKDF2-AES-GCM encryption for OpenTofu state files
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Proxmox VE Host                                              │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ OpenSUSE Leap 15.6 VM                                  │  │
+│  │                                                        │  │
+│  │  CPU: Host passthrough (Hyper-V enlightenments)        │  │
+│  │  Memory: Dedicated with ballooning                     │  │
+│  │  Disk: SCSI with io_uring (high performance)           │  │
+│  │  Network: VirtIO multi-queue                           │  │
+│  │  GPU: PCIe passthrough (AMD/NVIDIA/Intel)              │  │
+│  │  USB: Direct device passthrough                        │  │
+│  │  Agent: QEMU Guest Agent                               │  │
+│  │                                                        │  │
+│  │  Users:                                                │  │
+│  │  ├─ ansible (automation, passwordless sudo)            │  │
+│  │  ├─ admin (manual admin, password-protected sudo)      │  │
+│  │  └─ opensuse (default cloud-init user)                 │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
 
-**Recommended Use Cases:**
+## Features
 
-- 🎮 Gaming environments with modern GPU support
-- 🤖 AI/ML development with CUDA/ROCm support
-- 🎬 Multimedia editing and rendering workstations
-- 💻 High-performance development environments
-- 🔬 Scientific computing with GPU acceleration
+### Core Capabilities
+
+✅ **Cloud-Init Provisioning**: Automated user and system configuration at VM creation  
+✅ **Multi-User Management**: Ansible service account + admin user with SSH key authentication  
+✅ **Automated Cloud Image Download**: Fetches and caches openSUSE cloud image in Proxmox storage  
+✅ **SSH Key-Based Authentication**: Secure access without password authentication  
+✅ **GPU Passthrough**: Full AMD/NVIDIA/Intel GPU support for high-performance workloads  
+✅ **USB Passthrough**: Direct passthrough of USB peripherals (keyboards, mice, storage)  
+✅ **UEFI Boot**: Modern OVMF firmware for secure booting  
+✅ **High Performance**: io_uring disk I/O, writeback caching, dedicated IO threads  
+✅ **QEMU Guest Agent**: Advanced VM management and IP detection  
+✅ **State Encryption**: PBKDF2-AES-GCM encryption for OpenTofu state files  
+✅ **Lifecycle Management**: Prevent accidental deletion, ignore state drift
+
+### Recommended Use Cases
+
+🎮 **Gaming environments** with modern GPU support  
+🤖 **AI/ML development** with CUDA/ROCm support  
+🎬 **Multimedia editing** and rendering workstations  
+💻 **High-performance development** environments  
+🔬 **Scientific computing** with GPU acceleration  
+📊 **Data science workloads** with Python/R environments
 
 ## Prerequisites
 
-### Proxmox VE Environment
+### Hardware Requirements
 
-1. **Proxmox VE 8.x or later** installed and configured
-2. **IOMMU support enabled** in BIOS/UEFI and Proxmox kernel
-3. **Compatible GPU** with IOMMU support:
-   - AMD Polaris (RX 470, RX 480, RX 570, RX 580, etc.)
-   - AMD RDNA (RX 5700, RX 6700, etc.)
-   - Intel Arc GPUs (A380, A750, A770, etc.)
-   - NVIDIA GPUs (requires careful IOMMU configuration)
-4. **CPU with IOMMU support**:
-   - AMD: Ryzen 1000 series and newer
-   - Intel: Xeon E3/E5/Platinum, Core i7/i9 (6th gen and newer)
-5. **Sufficient storage** (minimum 150GB for VM disk)
-6. **24GB+ RAM** (minimum recommended with GPU)
+**Minimum:**
+- Proxmox VE 8.x or later
+- CPU with IOMMU support (AMD-Vi or Intel VT-d)
+- 24GB+ RAM for GPU workstation VMs
+- 150GB+ storage for VM disk
+- Compatible GPU (AMD, NVIDIA, or Intel Arc)
 
-### Proxmox Configuration
+**Supported CPUs:**
+- AMD: Ryzen 1000 series and newer, EPYC
+- Intel: Core i5/i7/i9 (6th gen+), Xeon E3/E5/Platinum
 
-Before deployment, verify and configure Proxmox:
+**Supported GPUs:**
+- AMD: Polaris (RX 470/480/570/580), RDNA (RX 5000/6000/7000)
+- NVIDIA: GeForce GTX/RTX series, Quadro, Tesla
+- Intel: Arc A380/A750/A770
+
+### Proxmox VE Configuration
+
+#### 1. Enable IOMMU in BIOS/UEFI
+
+Access your system BIOS/UEFI and enable:
+- AMD: **AMD-Vi** or **IOMMU**
+- Intel: **VT-d** (Virtualization Technology for Directed I/O)
+
+#### 2. Enable IOMMU in Proxmox Kernel
+
+Edit GRUB configuration:
 
 ```bash
-# Check IOMMU is enabled
+# For AMD processors
+nano /etc/default/grub
+# Add to GRUB_CMDLINE_LINUX_DEFAULT:
+GRUB_CMDLINE_LINUX_DEFAULT="quiet amd_iommu=on iommu=pt"
+
+# For Intel processors
+GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on iommu=pt"
+
+# Update GRUB
+update-grub
+reboot
+```
+
+#### 3. Verify IOMMU is Enabled
+
+```bash
+# Check IOMMU status
 dmesg | grep -i iommu
 
 # Expected output includes:
-# AMD-Vi: IOMMU disabled (code 0000)  <- If see this, enable in BIOS
-# IOMMU Enabled
-
-# Verify vfio-pci driver is available
-lsmod | grep vfio_pci
-
-# If not loaded, enable it:
-echo 'vfio-pci' | sudo tee -a /etc/modules-load.d/vfio.conf
-sudo update-initramfs -u -k all  # or sudo mkinitcpio -P for Arch
+# AMD-Vi: AMD IOMMUv2 loaded and initialized
+# or
+# DMAR: Intel(R) Virtualization Technology for Directed I/O
 ```
 
-### API Access Requirements
-
-1. **Proxmox API Token** with the following permissions:
-   - `Datastore.AllocateSpace`
-   - `Datastore.Audit`
-   - `Nodes.Allocate`
-   - `Nodes.PowerMgmt`
-   - `VirtualMachines.Create`
-   - `VirtualMachines.Modify`
-   - `VirtualMachines.View`
-
-2. **Create Token** in Proxmox GUI:
-   - Login to Proxmox > Datacenter > API Tokens
-   - Click "Add"
-   - User: `terraform`
-   - Token ID: `terraform-token`
-   - Copy the full token string (format: `user@realm!token-id=secret`)
-
-### Cloud-Init and Storage Prerequisites
-
-**⚠️ IMPORTANT: Manual Administrator Configuration Required**
-
-Before deploying VMs with cloud-init provisioning, the Proxmox administrator must:
-
-1. **Enable Snippets Content Type on Storage**
-   
-   Cloud-init requires the storage to have "snippets" content type enabled. Execute on Proxmox host:
-
-   ```bash
-   # Enable snippets on local storage
-   pvesm set local --content iso,vztmpl,snippets
-   
-   # Verify it's enabled
-   pvesm status | grep snippets
-   ```
-
-   **GUI Alternative:**
-   - Proxmox UI > Datacenter > Storage > [Select Storage] > Edit
-   - Content section: Enable "Snippets" checkbox
-   - Click Save
-
-2. **Verify SSH Access to Proxmox Host**
-   
-   OpenTofu needs SSH access to upload cloud-init snippets. Ensure:
-   - SSH is enabled on Proxmox host (usually port 22)
-   - SSH key-based authentication is configured
-   - Test connection: `ssh terraform@your-proxmox-host`
-
-### SSH Key Preparation (for Cloud-Init Users)
-
-Before deploying with `cloudinit_enabled = true`, generate SSH keys for automated management:
+#### 4. Load VFIO Modules
 
 ```bash
-# Generate Ansible service account SSH key (ed25519 recommended)
+# Add VFIO modules to load at boot
+cat >> /etc/modules <<EOF
+vfio
+vfio_iommu_type1
+vfio_pci
+vfio_virqfd
+EOF
+
+# Update initramfs
+update-initramfs -u -k all
+reboot
+```
+
+#### 5. Enable Snippets Content Type
+
+**⚠️ CRITICAL**: Cloud-init requires snippets enabled on storage:
+
+```bash
+# Enable snippets on local storage
+pvesm set local --content iso,vztmpl,snippets
+
+# Verify it's enabled
+pvesm status | grep snippets
+# Should show: local ... iso,vztmpl,snippets
+```
+
+**GUI Alternative:**
+- Proxmox UI → Datacenter → Storage → local → Edit
+- Content section: Check "Snippets" checkbox
+- Click OK
+
+#### 6. Create API Token
+
+In Proxmox web interface:
+
+1. Navigate to: **Datacenter** → **Permissions** → **API Tokens**
+2. Click **Add**
+3. User: `terraform@pve` (create user if needed)
+4. Token ID: `terraform-token`
+5. Uncheck **Privilege Separation**
+6. Click **Add**
+7. **Copy the full token** (format: `terraform@pve!terraform-token=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+**Required Permissions** for terraform user:
+- Datastore.AllocateSpace
+- Datastore.Audit
+- Pool.Allocate
+- Sys.Audit
+- Sys.Console
+- Sys.Modify
+- VM.Allocate
+- VM.Audit
+- VM.Clone
+- VM.Config.CDROM
+- VM.Config.CPU
+- VM.Config.Cloudinit
+- VM.Config.Disk
+- VM.Config.HWType
+- VM.Config.Memory
+- VM.Config.Network
+- VM.Config.Options
+- VM.Console
+- VM.Monitor
+- VM.PowerMgmt
+
+### Local Requirements
+
+#### Install OpenTofu
+
+```bash
+# Download OpenTofu (Linux)
+wget -O- https://get.opentofu.org/install-opentofu.sh | sh
+
+# Verify installation
+tofu --version
+# Should output: OpenTofu v1.6.0 or later
+```
+
+Alternative installation methods: https://opentofu.org/docs/intro/install/
+
+#### Generate SSH Keys for Cloud-Init Users
+
+```bash
+# Generate Ansible service account SSH key
 ssh-keygen -t ed25519 -f ~/.ssh/ansible_key -N "" -C "ansible@homelab"
 
 # Generate Admin user SSH key
 ssh-keygen -t ed25519 -f ~/.ssh/admin_key -N "" -C "admin@homelab"
 
-# Verify keys were created
-ls -la ~/.ssh/ansible_key* ~/.ssh/admin_key*
-
-# Display public keys (needed for terraform.tfvars)
-cat ~/.ssh/ansible_key.pub
-cat ~/.ssh/admin_key.pub
-```
-
-**Security Best Practices:**
-
-```bash
-# Set proper file permissions (important!)
+# Set proper permissions
 chmod 600 ~/.ssh/ansible_key ~/.ssh/admin_key
 chmod 644 ~/.ssh/ansible_key.pub ~/.ssh/admin_key.pub
 
-# Verify permissions
-ls -la ~/.ssh/ansible_key* ~/.ssh/admin_key*
-
-# Check key fingerprint for verification
-ssh-keygen -l -f ~/.ssh/ansible_key.pub
-ssh-keygen -l -f ~/.ssh/admin_key.pub
-
-# Store keys securely (outside of home directory for extra security)
-# Example: /secure/location/ansible_key, /secure/location/admin_key
-# Then reference in terraform.tfvars with full paths
+# Display public keys (needed for terraform.tfvars)
+echo "Ansible key:"
+cat ~/.ssh/ansible_key.pub
+echo ""
+echo "Admin key:"
+cat ~/.ssh/admin_key.pub
 ```
 
-### Local Requirements
+**Key Types:**
+- `ed25519`: Modern, secure, recommended (default)
+- `rsa -b 4096`: Compatible with older systems
+- `ecdsa -b 521`: Alternative modern option
 
-- **OpenTofu 1.6.0+** ([Install OpenTofu](https://opentofu.org/docs/intro/install/))
-- **SSH key pair** for Proxmox host authentication
-- **bash or zsh shell** for helper scripts
-- **Standard Unix tools**: grep, sed, awk, lspci, lsusb
+#### Generate SSH Key for Proxmox Host Access
 
 ```bash
-# Verify OpenTofu is installed
-tofu --version
+# Generate key for Proxmox host connection
+ssh-keygen -t ed25519 -f ~/.ssh/proxmox_terraform -N ""
 
-# Should output: OpenTofu v1.6.0 or later
+# Copy to Proxmox host
+ssh-copy-id -i ~/.ssh/proxmox_terraform root@<proxmox-ip>
+
+# Test connection
+ssh -i ~/.ssh/proxmox_terraform root@<proxmox-ip>
 ```
 
-### Hardware Discovery Tools
+### Hardware Discovery
 
-These commands help identify GPU and USB devices:
+#### Find Your GPU Device ID
 
 ```bash
-# List GPUs and audio devices
-lspci | grep -E "VGA|Audio"
+# On Proxmox host, list all GPUs
+lspci | grep -E "VGA|Audio|3D"
 
-# Output example:
-# 09:00.0 VGA compatible controller: AMD/ATI Radeon RX 5700
-# 09:00.1 Audio device: AMD Navi HDMI Audio
-# 09:00.2 PCI bridge
+# Example output:
+# 09:00.0 VGA compatible controller: AMD/ATI Radeon RX 580
+# 09:00.1 Audio device: AMD/ATI Radeon RX 580 HDMI Audio
 
-# List USB devices
+# Convert to Proxmox format (add 0000: prefix, remove .0 suffix)
+# 09:00.0 → 0000:09:00
+# 09:00.1 → 0000:09:00.1
+
+# Get detailed device info
+lspci -vv -s 09:00.0
+```
+
+#### Find Your USB Devices
+
+```bash
+# List all USB devices
 lsusb
 
-# Output example:
-# Bus 004 Device 002: ID 18f8:0f99 Example Corp. USB Optical Mouse
-# Bus 001 Device 003: ID 1a86:7523 Example Corp. Keyboard
-```
+# Example output:
+# Bus 001 Device 003: ID 046d:c328 Logitech, Inc. Corded Mouse
+# Bus 004 Device 002: ID 413c:2113 Dell Computer Corp. KB216 Keyboard
 
-## Directory Structure
-
-```text
-opensuseLeap/
-├── README.md                          # This file
-├── main.tf                            # Main VM resource configuration
-├── variables.tf                       # Input variables and validation
-├── outputs.tf                         # Output values after deployment
-├── providers.tf                       # Provider configuration (Proxmox, AWS)
-├── backend.tf                         # OpenTofu backend configuration
-├── encryption.tf                      # State file encryption setup (optional)
-├── terraform.tfvars.example          # Example configuration template
-├── s3.backend.config                 # AWS S3 backend configuration file
-├── terraform.tfstate                 # Current state file (LOCAL ONLY)
-├── terraform.tfstate.backup          # Previous state backup
-├── terraform.tfvars                  # Current configuration (SENSITIVE - DO NOT COMMIT)
-├── .gitignore                        # Git ignore rules
-├── .terraform/                       # OpenTofu working directory (auto-generated)
-└── generated/                        # Generated files (auto-created)
+# USB ID format: vendorID:productID
+# Mouse: 046d:c328
+# Keyboard: 413c:2113
 ```
 
 ## Quick Start
 
-### 1. Identify Your Hardware
-
-Run these commands on your Proxmox host to identify GPU and USB devices:
+### 1. Clone Repository
 
 ```bash
-# Find GPU (usually high number like 09:00)
-lspci | grep -E "VGA|Audio"
-
-# Expected output for AMD GPU:
-# 09:00.0 VGA compatible controller: AMD/ATI Radeon RX 5700
-# 09:00.1 Audio device: AMD Navi HDMI Audio
-
-# Convert to Proxmox format (add 0000: prefix and .0 suffix)
-# 09:00.0 → 0000:09:00
-# 09:00.1 → 0000:09:00.1
-
-# Find USB devices
-lsusb
-
-# Output example:
-# Bus 004 Device 002: ID 18f8:0f99 Example Corp. USB Optical Mouse
-# Bus 001 Device 003: ID 1a86:7523 Example Corp. Keyboard
-# Format for config: 18f8:0f99, 1a86:7523
+git clone <repository-url>
+cd opensuseLeap15.6
 ```
 
 ### 2. Create Configuration File
@@ -243,104 +308,126 @@ lsusb
 # Copy example configuration
 cp terraform.tfvars.example terraform.tfvars
 
-# Edit with your values (use your favorite editor)
+# Edit with your values
 nano terraform.tfvars
+```
 
-# Key values to update:
-# - proxmox_endpoint: Your Proxmox IP (e.g., https://192.168.1.100:8006/)
-# - proxmox_api_token: Token from step 1 (SECURITY: use env var instead)
-# - vm_hostpci0_id: GPU device ID (e.g., 0000:09:00)
-# - vm_hostpci4_id: GPU audio device ID if available (e.g., 0000:09:00.1)
-# - vm_usb_device_*_host: Your USB device IDs (e.g., 18f8:0f99)
+**Minimum required changes in `terraform.tfvars`:**
+
+```hcl
+# Proxmox connection
+proxmox_endpoint  = "https://192.168.1.100:8006/"  # Your Proxmox IP
+proxmox_api_token = "terraform@pve!terraform-token=YOUR_ACTUAL_TOKEN"
+proxmox_user      = "root"  # Or your Proxmox SSH user
+
+# VM identity
+vm_id   = 300  # Unique VM ID
+vm_name = "opensuse-workstation"
+
+# Hardware (adjust for your system)
+vm_cpu_cores        = 8
+vm_memory_dedicated = 24576  # 24GB
+
+# Storage
+vm_disk_datastore_id     = "local-lvm"  # Your storage
+vm_efi_disk_datastore_id = "local-lvm"
+
+# Cloud-init (if enabled)
+cloudinit_enabled    = true
+ansible_ssh_key_path = "~/.ssh/ansible_key.pub"
+admin_ssh_key_path   = "~/.ssh/admin_key.pub"
+
+# GPU passthrough (update with your device IDs)
+vm_hostpci0_id = "0000:09:00"    # Your GPU
+vm_hostpci4_id = "0000:09:00.1"  # Your GPU audio
+
+# USB passthrough (update with your device IDs)
+vm_usb_device_1_host = "046d:c328"  # Your mouse
+vm_usb_device_2_host = "413c:2113"  # Your keyboard
 ```
 
 ### 3. Initialize OpenTofu
 
 ```bash
-# Download Proxmox provider
+# Initialize providers and modules
 tofu init
 
-# Output should show:
-# Downloading Proxmox provider...
-# Terraform has been successfully configured!
+# Expected output:
+# Initializing the backend...
+# Initializing provider plugins...
+# - Finding bpg/proxmox versions matching "0.89.1"...
+# - Installing bpg/proxmox v0.89.1...
+# OpenTofu has been successfully initialized!
 ```
 
-### 4. Review Planned Changes
+### 4. Review Configuration
 
 ```bash
-# See what will be created
+# Generate execution plan
 tofu plan
 
-# Carefully review the output:
-# - VM ID, name, and configuration
-# - Resource count (should be 1 VM + networking)
-# - No errors or warnings about missing variables
+# Review the output carefully:
+# - Verify VM configuration
+# - Check resource counts
+# - Look for any errors or warnings
 ```
 
-### 5. Deploy the VM
+### 5. Deploy VM
 
 ```bash
-# Create the VM
+# Apply configuration
 tofu apply
 
-# You'll be prompted:
-# Do you want to perform these actions? [yes/no]
-# Type: yes
+# Review the plan and type: yes
 
-# Wait for completion (usually 2-5 minutes)
-# Final output will show:
-# Apply complete! Resources: 1 added
-
-# View outputs including connection info
-tofu output
-
-# Get SSH command:
-tofu output -raw connection_info
+# Wait for completion (typically 3-10 minutes)
+# Progress indicators show resource creation status
 ```
 
 ### 6. Access Your VM
 
+#### Via Proxmox Console
+
+1. Open Proxmox web interface: `https://<proxmox-ip>:8006/`
+2. Navigate to your VM (ID from `vm_id` variable)
+3. Click **Console** tab
+4. Select **noVNC** or **SPICE** viewer
+
+#### Via SSH (after cloud-init completes)
+
 ```bash
-# Via Proxmox Console (recommended for first access)
-https://your-proxmox-ip:8006/
-> Click VM (ID 100 by default)
-> Console tab
-> noVNC or Spice viewer
+# Get VM IP address
+tofu output connection_info
 
-# After network is configured, access via SSH:
-ssh user@<vm-ip>
+# SSH as ansible user
+ssh -i ~/.ssh/ansible_key ansible@<vm-ip>
 
-# Get VM IP from Proxmox GUI or:
-tofu output vm_ipv4_addresses
+# SSH as admin user
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
 ```
-## Cloud-Init Setup Guide
+
+## Cloud-Init Setup
 
 ### Overview
 
-This configuration supports automated VM provisioning via cloud-init, which:
-- Downloads openSUSE Leap 15.6 cloud image automatically
-- Creates Ansible service account for automation
-- Creates administrative user with sudo privileges
-- Configures SSH key authentication (no passwords)
-- Hardens SSH server configuration
-- Installs essential packages
-- Configures system services
+Cloud-init automatically provisions the VM with:
+- User accounts (ansible + admin)
+- SSH key authentication
+- Essential packages
+- System hardening (SSH config, firewall)
+- QEMU guest agent
 
-### Enabling Cloud-Init Provisioning
+### Configuration
 
-To use cloud-init features, ensure these settings in `terraform.tfvars`:
+Enable cloud-init in `terraform.tfvars`:
 
 ```hcl
-# Enable automatic VM creation and cloud-init setup
-vm_create_new       = true
-
-# Enable cloud-init provisioning
-cloudinit_enabled   = true
-
-# Download cloud image automatically
+# Enable new VM creation with cloud-init
+vm_create_new        = true
+cloudinit_enabled    = true
 cloud_image_download = true
 
-# SSH keys for user accounts (must exist)
+# SSH keys
 ansible_ssh_key_path = "~/.ssh/ansible_key.pub"
 admin_ssh_key_path   = "~/.ssh/admin_key.pub"
 
@@ -348,161 +435,191 @@ admin_ssh_key_path   = "~/.ssh/admin_key.pub"
 cloudinit_admin_username = "admin"
 
 # Network configuration
-cloudinit_use_dhcp  = true  # or false for static IP
+cloudinit_use_dhcp   = true  # or false for static IP
 cloudinit_dns_domain = "local"
-cloudinit_dns_servers = []  # Empty for defaults
+
+# For static IP (when cloudinit_use_dhcp = false):
+cloudinit_ipv4_address = "192.168.1.100/24"
+cloudinit_ipv4_gateway = "192.168.1.1"
 ```
 
-### Cloud-Init User Accounts Created
+### User Accounts Created
 
-**1. Ansible Service Account**
-- **Username:** `ansible`
-- **Groups:** `wheel` (sudoers)
-- **SSH Keys:** From `ansible_ssh_key_path` variable
-- **Sudo:** Passwordless (for Ansible automation)
-- **Password:** Locked (no password login)
-- **Use Case:** Automated provisioning, configuration management
+| User | Purpose | Sudo | Password | SSH Key |
+|------|---------|------|----------|---------|
+| **ansible** | Automation | Passwordless | Locked | ansible_key |
+| **admin** | Manual admin | Password required | Disabled | admin_key |
+| **opensuse** | Default | Standard | Disabled | Optional |
 
-**2. Administrative User Account**
-- **Username:** Configurable via `cloudinit_admin_username` (default: `admin`)
-- **Groups:** `wheel`, `docker`, `libvirt`, `kvm`
-- **SSH Keys:** From `admin_ssh_key_path` variable
-- **Sudo:** Password-required (for security)
-- **Password:** Disabled for SSH (use admin_ssh_key only)
-- **Use Case:** System administration, maintenance, troubleshooting
+### Package Installation
 
-**3. Default openSUSE User**
-- **Username:** `opensuse`
-- **Groups:** As provided by cloud image
-- **Access:** Via cloud-init console if needed
+Cloud-init installs these packages (openSUSE-specific):
 
-### Testing Cloud-Init Provisioning
+**System:**
+- `qemu-guest-agent` - VM management and IP detection
+- `net-tools-deprecated` - Network utilities (ifconfig, netstat)
+- `dbus-1` - D-Bus message bus
 
-After VM creation, test the provisioned users:
+**Development:**
+- `patterns-devel-base-devel_basis` - Build tools (gcc, make, etc.)
+- `python3`, `python3-pip`, `python3-devel` - Python environment
 
-```bash
-# SSH as Ansible user (passwordless sudo works)
-ssh -i ~/.ssh/ansible_key ansible@<vm-ip>
+**Utilities:**
+- `curl`, `wget`, `git` - Download and version control
+- `vim`, `nano`, `tmux` - Text editors and terminal multiplexer
+- `htop` - Process viewer
 
-# Test passwordless sudo
-ssh -i ~/.ssh/ansible_key ansible@<vm-ip> "sudo whoami"
-# Should output: root
+### Testing Cloud-Init
 
-# SSH as Admin user
-ssh -i ~/.ssh/admin_key admin@<vm-ip>
-
-# Test password-required sudo
-ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo whoami"
-# Should prompt for password, then output: root
-
-# Check cloud-init status
-ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo cloud-init status"
-# Should show: status: done
-
-# View cloud-init logs
-ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo tail -50 /var/log/cloud-init.log"
-```
-
-### Cloud-Init Troubleshooting
-
-**Cloud-Init Not Running:**
+After VM creation:
 
 ```bash
-# SSH to VM as admin user
+# SSH to VM
 ssh -i ~/.ssh/admin_key admin@<vm-ip>
 
 # Check cloud-init status
 sudo cloud-init status --long
+# Should show: status: done
 
-# View logs
+# View cloud-init logs
 sudo cat /var/log/cloud-init.log
 sudo cat /var/log/cloud-init-output.log
 
-# Check if packages were installed
-rpm -qa | grep qemu-guest-agent
+# Test passwordless sudo (ansible user)
+ssh -i ~/.ssh/ansible_key ansible@<vm-ip> "sudo whoami"
+# Should output: root (without password prompt)
 
-# Verify users were created
-id ansible
-id admin
+# Test password-required sudo (admin user)
+ssh -i ~/.ssh/admin_key admin@<vm-ip> "sudo whoami"
+# Should prompt for password
 ```
 
-**SSH Key Not Working:**
+### Troubleshooting Cloud-Init
+
+#### Cloud-Init Not Running
 
 ```bash
-# Verify key file permissions (IMPORTANT)
-ls -la ~/.ssh/ansible_key ~/.ssh/admin_key
-# Should show: -rw------- (600 for private keys)
+# Check status
+sudo cloud-init status
 
-# Check SSH public key in VM
-ssh -i ~/.ssh/admin_key admin@<vm-ip> "cat ~/.ssh/authorized_keys"
+# View detailed logs
+sudo journalctl -u cloud-init
 
-# Verify key format
-ssh-keygen -l -f ~/.ssh/ansible_key.pub
-
-# If key path is wrong, check terraform.tfvars
-grep "ssh_key_path" terraform.tfvars
+# Manually trigger cloud-init (for testing)
+sudo cloud-init clean
+sudo cloud-init init
 ```
 
-**Network Configuration Issues:**
+#### SSH Key Not Working
 
 ```bash
-# Test DHCP is working
-ip addr show
-ip route show
+# Verify key permissions on local machine
+ls -la ~/.ssh/ansible_key*
+# Should show: -rw------- (600) for private key
+#              -rw-r--r-- (644) for public key
 
-# If static IP is stuck, check cloud-init config
-grep -A5 "ip_config" cloud-init/user-config.yaml.tpl
+# Check authorized_keys in VM
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
+cat ~/.ssh/authorized_keys
 
-# View network configuration
-sudo cat /etc/sysconfig/network-scripts/ifcfg-eth0 # or equivalent
+# Verify key fingerprint matches
+ssh-keygen -l -f ~/.ssh/admin_key.pub
 ```
+
+#### Packages Failed to Install
+
+Check for openSUSE-specific package name issues:
+
+```bash
+# View package installation errors
+sudo cat /var/log/cloud-init-output.log | grep -i error
+
+# Common issues:
+# - "build-essential" → use "patterns-devel-base-devel_basis"
+# - "dbus-daemon" → use "dbus-1"
+# - "net-tools" → use "net-tools-deprecated"
+```
+
 ## GPU Passthrough Configuration
 
-### Discovering Your GPU
+### Prerequisites
+
+Verify IOMMU is configured (see [Proxmox VE Configuration](#proxmox-ve-configuration)):
 
 ```bash
-# List all PCI devices with graphics
-lspci | grep -E "VGA|3D|Audio"
-
-# Example output:
-# 09:00.0 VGA compatible controller: AMD/ATI Polaris 10 Radeon RX 580
-# 09:00.1 Audio device: ATI Technologies Inc. Navi HDMI Audio [AiO Chip]
-# 09:00.2 Multimedia controller: ATI Technologies Inc. Navi DP Audio
-# 09:00.3 PCI bridge: ATI Technologies Inc. Navi IOMMU Controller
-
-# Get full details:
-lspci -vv -s 09:00
-
-# Output includes:
-# Region 0: Memory at ... (64-bit, prefetchable)
-# Region 2: Memory at ... (64-bit, prefetchable)
-# Expansion ROM at ... [disabled]
+# Check IOMMU groups
+for iommu_group in $(find /sys/kernel/iommu_groups/ -maxdepth 1 -mindepth 1 -type d); do
+    echo "IOMMU group $(basename $iommu_group):"
+    lspci -nns $(cat $iommu_group/devices/*/uevent | grep PCI_SLOT_NAME | cut -d= -f2)
+    echo
+done
 ```
 
-### Configuring GPU IDs
+**Important**: GPU should be in isolated IOMMU group (not sharing with critical devices).
 
-Convert lspci format to Proxmox format:
+### Configure GPU Passthrough
 
-| lspci Output | Proxmox Format | Note |
-|-------------|-----------------|------|
-| `09:00.0` | `0000:09:00` | Primary GPU VGA |
-| `09:00.1` | `0000:09:00.1` | GPU Audio (optional) |
-| `09:00.2` | `0000:09:00.2` | GPU Audio Controller (optional) |
+#### 1. Identify GPU Device IDs
 
-Update `terraform.tfvars`:
+```bash
+# Find your GPU
+lspci | grep -E "VGA|Audio"
+
+# Example output:
+# 09:00.0 VGA compatible controller: AMD/ATI Radeon RX 580 2048SP
+# 09:00.1 Audio device: AMD/ATI Radeon RX 580 HDMI Audio
+
+# Convert to Proxmox format:
+# 09:00.0 → "0000:09:00"
+# 09:00.1 → "0000:09:00.1"
+```
+
+#### 2. Update terraform.tfvars
 
 ```hcl
-# Primary GPU (required)
-vm_hostpci0_id = "0000:09:00"
-vm_hostpci0_pcie = true      # Enable PCIe support
-vm_hostpci0_xvga = true      # Set as primary VGA
-vm_hostpci0_rombar = true    # Include GPU BIOS
+# Primary GPU (VGA controller)
+vm_hostpci0_id     = "0000:09:00"    # Your GPU device ID
+vm_hostpci0_pcie   = true            # Enable PCIe
+vm_hostpci0_rombar = true            # Include GPU BIOS
+vm_hostpci0_xvga   = true            # Primary VGA
 
-# GPU Audio Device (optional but recommended for audio support)
-vm_hostpci4_id = "0000:09:00.1"
-vm_hostpci4_pcie = false
-vm_hostpci4_xvga = false
+# GPU Audio (HDMI/DP audio)
+vm_hostpci4_id     = "0000:09:00.1"  # Your audio device ID
+vm_hostpci4_pcie   = false           # Audio doesn't need PCIe
 vm_hostpci4_rombar = true
+vm_hostpci4_xvga   = false           # Not VGA
+
+# Disable default VGA (required for GPU passthrough)
+vm_vga_type = "none"
+```
+
+#### 3. Uncomment GPU Blocks in main.tf
+
+Edit `main.tf` and uncomment the hostpci blocks (around line 360):
+
+```terraform
+# Uncomment these blocks:
+hostpci {
+  device = "hostpci0"
+  id     = var.vm_hostpci0_id
+  pcie   = var.vm_hostpci0_pcie
+  rombar = var.vm_hostpci0_rombar
+  xvga   = var.vm_hostpci0_xvga
+}
+
+hostpci {
+  device = "hostpci4"
+  id     = var.vm_hostpci4_id
+  pcie   = var.vm_hostpci4_pcie
+  rombar = var.vm_hostpci4_rombar
+  xvga   = var.vm_hostpci4_xvga
+}
+```
+
+#### 4. Apply Changes
+
+```bash
+tofu apply
 ```
 
 ### Post-Deployment GPU Setup
@@ -510,692 +627,611 @@ vm_hostpci4_rombar = true
 After VM boots with GPU:
 
 ```bash
-# SSH into the VM
-ssh user@<vm-ip>
+# SSH into VM
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
 
 # Verify GPU is detected
 lspci | grep -E "VGA|Audio"
+# Should show your GPU
 
-# Install AMD GPU drivers (for OpenSUSE Leap)
-sudo zypper addrepo https://download.opensuse.org/repositories/multimedia:/amdgpu/openSUSE_Leap_16/
-sudo zypper refresh
-sudo zypper install amdgpu-pro amdgpu-dkms
+# Install AMD GPU drivers (for OpenSUSE)
+sudo zypper addrepo --refresh \
+  https://download.opensuse.org/repositories/X11:/XOrg/openSUSE_Leap_15.6/ x11-xorg
 
-# Test GPU functionality
-clinfo                    # Check OpenCL support
-glxinfo | grep "OpenGL"   # Check graphics support
+# Install mesa drivers
+sudo zypper install -y \
+  Mesa-dri \
+  Mesa-libGL1 \
+  Mesa-libEGL1 \
+  libvulkan_radeon \
+  libvulkan1
+
+# Install AMD ROCm (for compute workloads)
+sudo zypper addrepo --refresh \
+  https://download.opensuse.org/repositories/science:/HPC/15.6/ rocm
+sudo zypper install -y rocm-opencl
+
+# Test GPU
+glxinfo | grep "OpenGL renderer"
+clinfo
+
+# For NVIDIA GPUs
+sudo zypper addrepo --refresh \
+  https://download.nvidia.com/opensuse/leap/15.6 nvidia
+sudo zypper install -y nvidia-driver-G06-kmp-default
+nvidia-smi
 ```
 
-## USB Device Passthrough Configuration
+### GPU Passthrough Troubleshooting
 
-### Discovering USB Devices
+#### GPU Not Detected in VM
 
 ```bash
-# List all USB devices with vendor and product IDs
+# On Proxmox host:
+# 1. Verify GPU is bound to vfio-pci
+lspci -k -s 09:00.0
+
+# Expected output:
+# Kernel driver in use: vfio-pci
+
+# If showing amdgpu/nvidia instead:
+echo "0000:09:00" > /sys/bus/pci/devices/0000:09:00/driver/unbind
+echo "0000:09:00" > /sys/bus/pci/drivers/vfio-pci/bind
+
+# 2. Check IOMMU groups
+dmesg | grep -i vfio
+```
+
+#### VM Won't Boot with GPU
+
+```bash
+# Try these BIOS settings on Proxmox host:
+# - Enable "Above 4G Decoding"
+# - Enable "Re-Size BAR Support"
+# - Disable "CSM" (Legacy Boot)
+
+# In terraform.tfvars, try:
+vm_hostpci0_pcie   = false  # Disable PCIe
+vm_hostpci0_rombar = false  # Disable ROM BAR
+```
+
+#### NVIDIA Code 43 Error
+
+```bash
+# NVIDIA drivers detect KVM and refuse to work
+# Add to terraform.tfvars:
+vm_cpu_type = "host,hidden,kvm=off"
+
+# Or update CPU args:
+vm_kvm_arguments = "-cpu 'host,kvm=off,hv_vendor_id=proxmox'"
+```
+
+## USB Device Passthrough
+
+### Identify USB Devices
+
+```bash
+# List all USB devices
 lsusb
 
 # Example output:
-# Bus 004 Device 002: ID 18f8:0f99 Example Corp. USB Optical Mouse
-# Bus 001 Device 003: ID 1a86:7523 Example Corp. Keyboard
-# Bus 002 Device 005: ID 0951:1666 Example Storage Device
+# Bus 001 Device 003: ID 046d:c328 Logitech, Inc. Corded Mouse M500
+# Bus 004 Device 002: ID 413c:2113 Dell Computer Corp. KB216 Keyboard
+# Bus 002 Device 005: ID 0951:1666 Kingston Technology DataTraveler 100 G3
 
-# Get detailed info:
-lsusb -vv -d 18f8:0f99
+# USB ID format: vendorID:productID
 ```
 
-### Proxmox USB ID Formats
-
-USB devices can be passed through using two formats:
-
-### Format 1: Vendor:Product ID (Recommended for stability)
-
-```hcl
-# Format: VENDOR_ID:PRODUCT_ID
-vm_usb_device_1_host = "18f8:0f99"  # Example Mouse
-vm_usb_device_2_host = "1a86:7523"  # Example Keyboard
-```
-
-### Format 2: Hub Port (for port-specific passthrough)
-
-```hcl
-# Format: BUS-PORT[.PORT]
-vm_usb_device_1_host = "4-2"        # Bus 4, Port 2
-vm_usb_device_2_host = "4-2.4"      # Bus 4, Port 2, SubPort 4
-```
-
-### USB Device Configuration
+### Configure USB Passthrough
 
 Update `terraform.tfvars`:
 
 ```hcl
-# USB Device 1: Primary input device (keyboard)
-vm_usb_device_1_host = "1a86:7523"  # Your keyboard ID
-vm_usb_device_1_usb3 = false         # USB 2.0 for compatibility
+# USB Device 1: Mouse
+vm_usb_device_1_host = "046d:c328"  # Your mouse vendor:product
+vm_usb_device_1_usb3 = false        # USB 2.0 sufficient for mouse
 
-# USB Device 2: Secondary input device (mouse)
-vm_usb_device_2_host = "18f8:0f99"  # Your mouse ID
-vm_usb_device_2_usb3 = true          # USB 3.0 if available
+# USB Device 2: Keyboard
+vm_usb_device_2_host = "413c:2113"  # Your keyboard vendor:product
+vm_usb_device_2_usb3 = false        # USB 2.0 sufficient for keyboard
 
-# USB Device 3: Storage device (optional)
-vm_usb_device_3_host = "0951:1666"  # Example USB drive
-vm_usb_device_3_usb3 = true
+# USB Device 3: Storage device
+vm_usb_device_3_host = "0951:1666"  # USB drive vendor:product
+vm_usb_device_3_usb3 = true         # USB 3.0 for faster transfer
 
-# USB Device 4: Additional peripheral (optional)
-vm_usb_device_4_host = ""            # Leave empty if not used
+# USB Device 4: Additional (or leave empty)
+vm_usb_device_4_host = ""           # Empty if not used
 vm_usb_device_4_usb3 = false
 ```
 
-### Testing USB Passthrough
+**Alternative: Hub Port Format**
+
+```hcl
+# Use physical port instead of device ID
+vm_usb_device_1_host = "1-4"      # Bus 1, Port 4
+vm_usb_device_2_host = "4-2.3"    # Bus 4, Port 2, Subport 3
+```
+
+**Pros/Cons:**
+- **Vendor:Product ID**: Works regardless of USB port, but affects all matching devices
+- **Hub Port**: Specific physical port, but device must stay in same port
+
+### Uncomment USB Blocks in main.tf
+
+Edit `main.tf` and uncomment USB blocks (around line 425):
+
+```terraform
+# Uncomment these blocks:
+usb {
+  host = var.vm_usb_device_1_host
+  usb3 = var.vm_usb_device_1_usb3
+}
+# ... (repeat for other USB devices)
+```
+
+### Apply Changes
 
 ```bash
-# After VM boots, verify USB devices are detected
+tofu apply
+```
+
+### Verify USB Passthrough
+
+```bash
+# In VM, check USB devices
 lsusb
 
-# Check for your devices:
-# Bus 001 Device 002: ID 18f8:0f99 Example Corp. USB Optical Mouse
-# Bus 001 Device 003: ID 1a86:7523 Example Corp. Keyboard
+# Should show your passed-through devices
+# Bus 001 Device 002: ID 046d:c328 Logitech, Inc. Corded Mouse M500
 ```
 
-## Cloud Image Update Process
-
-### Checking for New openSUSE Leap 15.6 Cloud Image Versions
-
-The cloud image is periodically updated by openSUSE with security patches and updates. To check for new versions:
-
-```bash
-# Check the official openSUSE repository for new images
-curl -s "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_15.6/images/" | \
-  grep -o 'openSUSE-Leap-15.6.*\.qcow2' | head -5
-
-# Download and verify the latest SHA256 checksum
-cd /tmp
-wget -q "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_15.6/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2.sha256"
-cat openSUSE-Leap-15.6.x86_64-NoCloud.qcow2.sha256
-
-# Output example:
-# 75e6c617a898aed970dd52f2f67de87a6392fbf9ce30d9ead2b1dbf8f2f36194  openSUSE-Leap-15.6.x86_64-NoCloud.qcow2
-```
-
-### Updating Cloud Image in Your Configuration
-
-When a new cloud image version is available:
-
-1. **Get New Checksum:**
-   - Use the curl command above to retrieve the new SHA256
-   - Copy the 64-character hash
-
-2. **Update terraform.tfvars:**
-   ```bash
-   # Edit your configuration
-   nano terraform.tfvars
-   
-   # Update the checksum value:
-   cloud_image_checksum = "NEW_SHA256_HASH_HERE"
-   ```
-
-3. **Test the Update:**
-   ```bash
-   # Verify the configuration is valid
-   tofu validate
-   
-   # See what will change (should just be image download)
-   tofu plan
-   
-   # Apply if looks good
-   tofu apply
-   ```
-
-4. **Deploy New VMs:**
-   - The new image will be downloaded to Proxmox storage
-   - Set `vm_create_new = true` and deploy new VMs to use the updated image
-   - Existing VMs will continue to use their current image
-
-**Note:** The Terraform configuration includes `lifecycle { ignore_changes = [checksum] }` in cloud-image.tf. This prevents accidental re-downloads if the remote checksum changes. To force an image re-download:
-
-```bash
-# Delete the image from Proxmox storage manually, then
-tofu apply -replace=proxmox_virtual_environment_download_file.opensuse_cloud_image
-```
-
-## Terraform Variables
+## Configuration Variables
 
 ### Essential Variables
 
-| Variable | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| `proxmox_endpoint` | string | - | Yes | Proxmox API URL (<https://ip:8006>) |
-| `proxmox_api_token` | string | - | Yes | API token (user@realm!token=secret) |
-| `proxmox_user` | string | - | Yes | SSH username for file uploads |
-| `proxmox_node_name` | string | "pve" | No | Proxmox node hosting VM |
-| `vm_id` | number | 100 | No | Unique VM ID in Proxmox |
-| `vm_name` | string | "opensuseLeap16" | No | VM name in Proxmox |
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `proxmox_endpoint` | string | - | Proxmox API URL (https://ip:8006/) |
+| `proxmox_api_token` | string | - | API token (user@realm!token=secret) |
+| `proxmox_user` | string | - | SSH username for Proxmox |
+| `proxmox_node_name` | string | "pve" | Proxmox node name |
+| `vm_id` | number | 100 | Unique VM ID (100-999999999) |
+| `vm_name` | string | "opensuseLeap15-6" | VM name |
 
 ### Hardware Configuration
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `vm_cpu_cores` | number | 6 | CPU cores (match your CPU count) |
-| `vm_memory_dedicated` | number | 24576 | Dedicated RAM in MB (24GB) |
-| `vm_disk_size` | number | 150 | Disk size in GB |
-| `vm_disk_datastore_id` | string | "local-zfs" | Storage location |
+| `vm_cpu_cores` | number | 2 | CPU cores (1-128) |
+| `vm_cpu_type` | string | "x86-64-v2-AES" | CPU type (host, x86-64-v2-AES) |
+| `vm_memory_dedicated` | number | 12288 | Dedicated RAM in MB |
+| `vm_memory_floating` | number | 16384 | Max balloon RAM in MB |
+| `vm_disk_size` | number | 50 | Disk size in GB (min 20) |
+| `vm_disk_datastore_id` | string | "local-lvm" | Storage location |
 
-### GPU Passthrough Variables
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `vm_hostpci0_id` | string | "0000:09:00" | Primary GPU PCI ID |
-| `vm_hostpci0_pcie` | bool | true | Enable PCIe passthrough |
-| `vm_hostpci4_id` | string | "0000:09:00.1" | GPU audio PCI ID |
-| `vm_hostpci4_pcie` | bool | false | GPU audio PCIe support |
-
-### USB Passthrough Variables
+### GPU Passthrough
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `vm_usb_device_1_host` | string | "1a86:7523" | Device 1 ID (keyboard) |
-| `vm_usb_device_1_usb3` | bool | false | Use USB 3.0 |
-| `vm_usb_device_2_host` | string | "18f8:0f99" | Device 2 ID (mouse) |
-| `vm_usb_device_2_usb3` | bool | false | Use USB 3.0 |
+| `vm_hostpci0_id` | string | "0000:0b:00" | GPU PCI ID |
+| `vm_hostpci0_pcie` | bool | true | Enable PCIe |
+| `vm_hostpci0_rombar` | bool | true | Enable ROM BAR |
+| `vm_hostpci0_xvga` | bool | true | Primary VGA |
+| `vm_hostpci4_id` | string | "0000:0c:00.1" | Audio PCI ID |
 
-See `variables.tf` for complete list of all 100+ configurable variables.
+### USB Passthrough
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `vm_usb_device_1_host` | string | "212e:1534" | Device 1 ID |
+| `vm_usb_device_1_usb3` | bool | false | Enable USB 3.0 |
+| `vm_usb_device_2_host` | string | "1-4" | Device 2 ID |
+| `vm_usb_device_2_usb3` | bool | false | Enable USB 3.0 |
+
+### Cloud-Init
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `cloudinit_enabled` | bool | true | Enable cloud-init |
+| `cloudinit_admin_username` | string | "admin" | Admin username |
+| `ansible_ssh_key_path` | string | "~/.ssh/ansible_key.pub" | Ansible SSH key |
+| `admin_ssh_key_path` | string | "~/.ssh/admin_key.pub" | Admin SSH key |
+| `cloudinit_use_dhcp` | bool | true | Use DHCP |
+
+See `variables.tf` for complete list of 100+ variables.
 
 ## Outputs
 
-After successful deployment, use these outputs to access your VM:
+After deployment, view outputs:
 
 ```bash
-# Get all outputs
+# Display all outputs
 tofu output
 
-# Specific outputs:
-tofu output vm_id                    # VM ID
-tofu output vm_ipv4_addresses        # Assigned IP addresses
-tofu output connection_info          # Connection summary
+# Get specific output
+tofu output vm_id
+tofu output connection_info
+
+# Export to JSON
+tofu output -json > outputs.json
 ```
 
-Key outputs include:
+### Available Outputs
 
-- `vm_id`: VM identifier in Proxmox
-- `vm_ipv4_addresses`: IPv4 addresses (for SSH)
-- `vm_mac_addresses`: MAC addresses of network interfaces
-- `vm_gpu_pci_id`: GPU ID passed through
-- `vm_cpu_cores`: Allocated CPU cores
-- `vm_memory_dedicated`: Allocated memory
-- `connection_info`: Summary for easy reference
+| Output | Description |
+|--------|-------------|
+| `vm_id` | VM identifier in Proxmox |
+| `vm_name` | VM name |
+| `vm_node` | Proxmox node hosting VM |
+| `vm_ipv4_addresses` | IPv4 addresses (sensitive) |
+| `vm_mac_addresses` | MAC addresses (sensitive) |
+| `vm_cpu_cores` | Allocated CPU cores |
+| `vm_memory_dedicated` | Dedicated memory in MB |
+| `vm_gpu_pci_id` | GPU device ID |
+| `vm_audio_pci_id` | Audio device ID |
+| `connection_info` | Consolidated connection info |
 
-## Security Considerations
+## Known Issues
 
-### 🔐 API Credentials
+### 1. Disk Resize Error
 
-**Critical**: Never commit `terraform.tfvars` containing API tokens to version control.
-
-**Safe approaches:**
-
-1. **Environment Variables** (Recommended):
-
-```bash
-export TF_VAR_proxmox_api_token="terraform@pve!token-id=secret"
-export TF_VAR_proxmox_endpoint="https://192.168.1.100:8006/"
-
-tofu apply  # Variables are read from environment
+**Symptom:**
+```
+Error: resizing disk: error waiting for VM disk resize: All attempts fail:
+shrinking disks is not supported
 ```
 
-2. **OpenTofu CLI** (For sensitive operations):
+**Cause**: Proxmox doesn't support shrinking disks. This error occurs when:
+- VM disk is already larger than configured size
+- Cloud image is larger than vm_disk_size
+- Disk was manually resized in Proxmox GUI
 
-```bash
-tofu apply \
-  -var="proxmox_api_token=terraform@pve!token-id=secret" \
-  -var="proxmox_endpoint=https://192.168.1.100:8006/"
-```
-
-3. **HashiCorp Vault** (Production):
-
-```bash
-vault login
-vault write secret/homelab/proxmox \
-  api_token="terraform@pve!token-id=secret" \
-  endpoint="https://192.168.1.100:8006/"
-```
-
-4. **AWS Secrets Manager** (If using AWS backend):
-
-```bash
-aws secretsmanager create-secret \
-  --name proxmox/terraform \
-  --secret-string '{"api_token":"...","endpoint":"..."}'
-```
-
-### 🛡️ Sensitive Data in State Files
-
-OpenTofu state files contain sensitive information:
-
-```bash
-# Encrypt state file with password
-export TF_VAR_passphrase="your-16-plus-character-password"
-
-# State encryption uses PBKDF2-AES-GCM (secure)
-# 600,000 iterations, SHA-512
-```
-
-**Never store state files in public repositories!**
-
-### 🔒 TLS/SSL Security
-
-Default configuration accepts self-signed certificates:
+**Solution:**
 
 ```hcl
-connection_option_insecure = true  # Development only!
+# Option 1: Set disk size to current size or larger
+vm_disk_size = 100  # Match or exceed current size
+
+# Option 2: Ignore disk size changes in main.tf
+lifecycle {
+  ignore_changes = [disk[0].size]
+}
 ```
 
-For production, use proper certificates:
-
-```hcl
-connection_option_insecure = false
-tls_cert_path = "/etc/ssl/certs/proxmox-ca.pem"
-```
-
-### 🔑 SSH Key Management
-
-Ensure SSH keys for Proxmox access are properly secured:
-
+Verify current disk size:
 ```bash
-# Generate SSH key (one-time)
-ssh-keygen -t ed25519 -f ~/.ssh/proxmox -N ""
-
-# Set strict permissions
-chmod 600 ~/.ssh/proxmox
-chmod 644 ~/.ssh/proxmox.pub
-
-# Add to Proxmox authorized_keys
-ssh-copy-id -i ~/.ssh/proxmox root@proxmox-host
-
-# Configure local SSH config
-cat >> ~/.ssh/config << EOF
-Host proxmox
-    HostName 192.168.1.100
-    User terraform
-    IdentityFile ~/.ssh/proxmox
-    StrictHostKeyChecking no
-EOF
+# On Proxmox host
+qm config <vm_id> | grep scsi0
 ```
 
-### 🚨 IOMMU Security
+### 2. Cloud-Init Package Installation Failures
 
-GPU passthrough requires IOMMU groups:
+**Symptom**: Packages fail to install with "package not found" errors
 
+**Cause**: openSUSE uses different package names than Debian/Ubuntu
+
+**Solution**: The configuration uses correct openSUSE package names:
+- ✅ `patterns-devel-base-devel_basis` (not `build-essential`)
+- ✅ `net-tools-deprecated` (not `net-tools`)
+- ✅ `dbus-1` (not `dbus-daemon`)
+
+If you modify `cloud-init/user-config.yaml`, use openSUSE package names:
 ```bash
-# Verify IOMMU group isolation
-for iommu_group in $(find /sys/kernel/iommu_groups/ -maxdepth 1 -mindepth 1 -type d); do
-  echo "IOMMU group $(basename $iommu_group):"
-  lspci -nns $(cat $iommu_group/devices/*/uevent | grep PCI_SLOT_NAME | cut -d= -f2) 2>/dev/null
-  echo
-done
+# Search for packages
+zypper search <package-name>
+```
 
-# Ensure GPU is in isolated group (not shared with motherboard chipset)
-# If shared, may need BIOS settings adjustment or different GPU slot
+### 3. Snippets Content Type Not Enabled
+
+**Symptom**: 
+```
+Error: content type 'snippets' is not enabled for storage 'local'
+```
+
+**Solution**:
+```bash
+# On Proxmox host
+pvesm set local --content iso,vztmpl,snippets
+
+# Verify
+pvesm status | grep snippets
+```
+
+### 4. QEMU Guest Agent Not Running
+
+**Symptom**: VM IP address shows as "No IP assigned"
+
+**Cause**: Guest agent not started yet (cloud-init still running or agent failed)
+
+**Solution**:
+```bash
+# SSH to VM
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
+
+# Check agent status
+sudo systemctl status qemu-guest-agent
+
+# If not running
+sudo systemctl enable qemu-guest-agent
+sudo systemctl start qemu-guest-agent
+
+# On Proxmox host, check agent communication
+qm agent <vm_id> ping
 ```
 
 ## Troubleshooting
 
-### Problem: GPU Not Detected in VM
-
-**Symptoms**: GPU shows in Proxmox config but not in VM (`lspci` shows nothing)
-
-**Solution Steps**:
+### General Debugging
 
 ```bash
-# 1. Verify IOMMU on Proxmox host
-dmesg | grep -i iommu
+# Enable debug logging
+export TF_LOG=DEBUG
+tofu apply
 
-# 2. Check GPU is actually passed through
-lspci -k | grep -A 2 "AMD/ATI"
+# Check Proxmox task log
+tail -f /var/log/pve/tasks/active
 
-# Expected output:
-# 09:00.0 VGA compatible controller: AMD/ATI Radeon RX 580
-#     Kernel driver in use: vfio-pci
-#     Kernel modules: amdgpu
-
-# 3. Verify GPU is not in use by host
-ps aux | grep -i amdgpu
-ps aux | grep -i nouveau
-
-# 4. If shows host driver, unbind GPU:
-echo "0000:09:00" | sudo tee /sys/bus/pci/devices/0000:09:00/driver/unbind
-echo "0000:09:00" | sudo tee /sys/bus/pci/drivers/vfio-pci/new_id
-
-# 5. Verify vfio-pci is loaded
-lsmod | grep vfio_pci
-
-# 6. If missing, add to modules:
-echo "vfio-pci" | sudo tee -a /etc/modules-load.d/vfio.conf
-sudo update-initramfs -u -k all
+# View specific task details
+cat /var/log/pve/tasks/<task-id>
 ```
 
-### Problem: USB Device Not Found
-
-**Symptoms**: USB passthrough configured but device not available in VM
-
-**Solution Steps**:
+### VM Won't Start
 
 ```bash
-# 1. Verify device ID is correct
-lsusb | grep -i "your-device-name"
+# Check VM status
+qm status <vm_id>
 
-# 2. Check device isn't already in use
-lsof /dev/bus/usb/*/device_number
+# View VM configuration
+qm config <vm_id>
 
-# 3. Restart USB subsystem
-sudo systemctl restart usbmuxd  # for macOS-bound devices
-sudo usb-devices                 # for device info
+# Try starting manually
+qm start <vm_id>
 
-# 4. Check hub port accessibility
-lsusb -vv -d vendor:product
-
-# 5. Try hub port format instead of vendor:product
-# Change from: vm_usb_device_1_host = "18f8:0f99"
-#         to: vm_usb_device_1_host = "4-2.1"
+# Check logs
+journalctl -u pveproxy -f
 ```
 
-### Problem: High Latency or Stuttering
-
-**Symptoms**: Graphics feel sluggish, mouse lags, frame drops
-
-**Solution Steps**:
-
-```hcl
-# Increase IO performance in terraform.tfvars
-vm_disk_aio      = "io_uring"      # Latest async I/O
-vm_disk_cache    = "writeback"     # Write-back caching
-vm_disk_iothread = true            # Dedicated IO thread
-vm_cpu_type      = "host"          # Host CPU passthrough
-
-# Disable unnecessary features
-vm_tablet_device = false  # If not needed
-vm_vga_memory    = 0      # GPU handles display
-```
-
-### Problem: VM Won't Boot After Passthrough
-
-**Symptoms**: VM hangs after passthrough config, stuck in BIOS
-
-**Solution Steps**:
+### Network Issues
 
 ```bash
-# 1. Check device IOMMU group conflicts
-echo "0000:09:00" | grep -f /sys/kernel/iommu_groups/*/devices/*/uevent
+# In VM, check network interfaces
+ip addr show
 
-# 2. Ensure GPU doesn't share group with essential devices
-cat /sys/kernel/iommu_groups/X/devices/*
+# Check routing
+ip route show
 
-# 3. Reset GPU:
-echo "0000:09:00" | sudo tee /sys/bus/pci/devices/0000:09:00/reset
+# Test connectivity
+ping 8.8.8.8
 
-# 4. Try different BIOS settings:
-# - PCIe ARI support: Enable
-# - Above 4G Decoding: Enable
-# - SR-IOV: Disable (if not needed)
-
-# 5. Reboot Proxmox host (may be required after BIOS changes)
+# If DHCP not working, check cloud-init network config
+sudo cat /etc/netplan/*.yaml  # Ubuntu-based
+sudo cat /etc/sysconfig/network-scripts/ifcfg-*  # openSUSE
 ```
 
-### Problem: State File Corruption
-
-**Symptoms**: OpenTofu shows state file errors or incompatible version
-
-**Recovery Steps**:
+### State File Issues
 
 ```bash
-# 1. Backup current state
-cp terraform.tfstate terraform.tfstate.corrupted
+# Backup state
+cp terraform.tfstate terraform.tfstate.backup.$(date +%Y%m%d)
 
-# 2. Restore from backup
-cp terraform.tfstate.backup terraform.tfstate
-
-# 3. Refresh state from actual resources
+# Refresh state from actual infrastructure
 tofu refresh
 
-# 4. If still issues, import existing VM
-tofu import proxmox_virtual_environment_vm.opensuseLeap16 100
+# If corrupted, restore from backup
+cp terraform.tfstate.backup terraform.tfstate
+
+# Re-import resource if needed
+tofu import proxmox_virtual_environment_vm.opensuseLeap[0] <vm_id>
 ```
 
 ## Performance Tuning
 
-### CPU Performance
+### CPU Optimization
 
 ```hcl
-# Enable host CPU passthrough (best performance)
-vm_cpu_type = "host"
+# Maximum performance
+vm_cpu_type = "host"  # Expose all host CPU features
 
-# Hyper-V enlightenments for Windows-like efficiency
-vm_kvm_arguments = "-cpu 'host,hv_ipi,hv_relaxed,hv_reset,...'"
-
-# Disable CPU hotplug if not needed
-vm_cpu_hotplugged = 0
+# For Windows guests, add Hyper-V enlightenments
+vm_kvm_arguments = "-cpu 'host,hv_ipi,hv_relaxed,hv_reset,hv_runtime,hv_spinlocks=0x1fff,hv_stimer,hv_synic,hv_time,hv_vapic,hv_vpindex'"
 ```
 
-### Memory Performance
+### Memory Optimization
 
 ```hcl
-# Dedicated memory (not shared/ballooned)
+# Dedicated memory (no ballooning)
 vm_memory_dedicated = 24576
+vm_memory_floating  = 24576  # Same as dedicated
 
-# Use floating memory for flexibility
-vm_memory_floating = 16384  # Max memory for ballooning
-
-# Disable shared memory unless needed
-vm_memory_shared = 0
+# With ballooning (flexible)
+vm_memory_dedicated = 16384  # Minimum guaranteed
+vm_memory_floating  = 24576  # Maximum allowed
 ```
 
 ### Disk Performance
 
 ```hcl
-# Use latest async I/O mechanism
-vm_disk_aio = "io_uring"
-
-# Write-back caching for speed (requires safe shutdown)
-vm_disk_cache = "writeback"
-
-# Direct block device discard for SSD
-vm_disk_discard = "on"
-
-# Dedicated IO thread
-vm_disk_iothread = true
-
-# Use raw format (not qcow2)
-vm_disk_file_format = "raw"
+# Maximum performance
+vm_disk_aio      = "io_uring"   # Latest async I/O
+vm_disk_cache    = "writeback"  # Write caching
+vm_disk_iothread = true         # Dedicated thread
+vm_disk_ssd      = true         # Enable TRIM
+vm_disk_discard  = "on"         # Pass TRIM to storage
+vm_disk_file_format = "raw"     # Raw format (not qcow2)
 ```
 
 ### Network Performance
 
 ```hcl
-# VirtIO for best performance
-vm_network_model = "virtio"
-
-# Match queues to CPU cores
-vm_network_queues = 6  # Same as vm_cpu_cores
-
-# Disable firewalling in VM network layer
-vm_network_firewall = false
+# VirtIO with multiqueue
+vm_network_model  = "virtio"
+vm_network_queues = 8  # Match CPU cores
 ```
 
-## Backup and Disaster Recovery
+## Security Considerations
 
-### Manual Snapshots
+### API Token Security
+
+**Never commit API tokens to version control:**
 
 ```bash
-# Create snapshot before major changes
-tofu plan -out=tfplan
+# Use environment variables
+export TF_VAR_proxmox_api_token="terraform@pve!token=secret"
 
-# Take VM snapshot in Proxmox
-qm snapshot 100 pre-gpu-passthrough
-
-# If something goes wrong, restore:
-qm snapshot 100 pre-gpu-passthrough -force
-
-# Then re-import state
-tofu refresh
+# Add to .gitignore
+echo "terraform.tfvars" >> .gitignore
+echo "*.tfstate*" >> .gitignore
 ```
 
-### State File Backup
-
+**Rotate tokens regularly:**
 ```bash
-# Enable S3 backend for remote state backup
-tofu init -backend-config=s3.backend.config
-
-# Manual backup
-cp terraform.tfstate s3://my-backups/opensuseLeap-$(date +%Y%m%d).tfstate
-
-# AWS S3 versioning (automatic backups)
-aws s3api put-bucket-versioning \
-  --bucket my-terraform-state \
-  --versioning-configuration Status=Enabled
+# In Proxmox, revoke old token and create new one
+# Update terraform.tfvars or environment variable
 ```
 
-### VM Backup (Proxmox Native)
+### SSH Key Security
 
 ```bash
-# Create full VM backup
-proxmox-backup-client backup vm --repository $REPO 100
+# Proper permissions
+chmod 600 ~/.ssh/ansible_key ~/.ssh/admin_key
+chmod 644 ~/.ssh/ansible_key.pub ~/.ssh/admin_key.pub
 
-# List backups
-proxmox-backup-client list $REPO
+# Use passphrases for admin keys
+ssh-keygen -t ed25519 -f ~/.ssh/admin_key -C "admin@homelab"
+# Enter passphrase when prompted
 
-# Restore if needed
-proxmox-backup-client restore $BACKUP_ID /mnt/backup
+# Use ssh-agent
+eval $(ssh-agent)
+ssh-add ~/.ssh/admin_key
 ```
 
-## Post-Deployment Configuration
+### State File Encryption
 
-### OpenSUSE Leap System Setup
+State files contain sensitive data. This configuration includes encryption:
 
-After VM boots:
-
-```bash
-# SSH into VM
-ssh user@<vm-ip>
-
-# Update system
-sudo zypper update -y
-
-# Install useful packages
-sudo zypper install -y \
-  git curl wget vim tmux htop \
-  build-essential kernel-devel-default \
-  gcc gfortran cmake
-
-# For AI/ML workloads
-sudo zypper install -y \
-  python3 python3-devel python3-pip \
-  cuda-toolkit  # if NVIDIA GPU
-
-# For gaming/graphics
-sudo zypper install -y \
-  mesa-libGL \
-  vulkan-tools \
-  glxinfo
-
-# Verify GPU is working
-lspci | grep -E "VGA|Audio"
-glxinfo | grep "OpenGL"
+```hcl
+# In encryption.tf
+terraform {
+  encryption {
+    key_provider "pbkdf2" "generated_passphrase" {
+      passphrase = file(var.passphrase)
+      iterations = 600000
+      key_length = 32
+    }
+    method "aes_gcm" "default_method" {
+      keys = key_provider.pbkdf2.generated_passphrase
+    }
+    state {
+      method   = method.aes_gcm.default_method
+      enforced = true
+    }
+  }
+}
 ```
 
-### Network Configuration
-
+**Setup:**
 ```bash
-# Check network interface
-ip addr
+# Create passphrase file
+echo "your-strong-passphrase-min-16-chars" > ~/.ssh/state_passphrase
+chmod 600 ~/.ssh/state_passphrase
 
-# Configure static IP (if DHCP not available)
-sudo nmtui
-
-# Or edit netplan
-sudo vim /etc/netplan/01-netcfg.yaml
-sudo netplan apply
+# Update terraform.tfvars
+passphrase = "~/.ssh/state_passphrase"
 ```
 
-### GPU Driver Installation
-
-**For AMD GPU:**
+### Network Security
 
 ```bash
-# Add ROCm repository
-wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | sudo rpm --import -
-sudo zypper addrepo --no-gpgcheck https://repo.radeon.com/rocm/zyp/main rocm-main
+# In cloud-init, SSH is hardened:
+# - Root login disabled
+# - Password authentication disabled
+# - Firewall enabled with SSH only
 
-# Install drivers
-sudo zypper install rocm-dkms rocm-libs
-
-# Verify installation
-rocm-smi
-```
-
-**For NVIDIA GPU:**
-
-```bash
-# Install NVIDIA drivers (if available)
-sudo zypper install -y nvidia-driver-latest-dkms
-
-# Verify
-nvidia-smi
+# Additional hardening (in VM):
+sudo firewall-cmd --set-default-zone=drop
+sudo firewall-cmd --zone=drop --add-service=ssh --permanent
+sudo firewall-cmd --reload
 ```
 
 ## Maintenance
 
-### Regular Tasks
+### Regular Updates
 
 ```bash
-# Check for OpenTofu updates
-tofu version
-
-# Review plan regularly for drift
-tofu plan
-
-# Update providers
+# Update OpenTofu providers
 tofu init -upgrade
 
-# Backup state files monthly
-aws s3 sync . s3://my-backup/opensuseLeap-$(date +%Y-%m-%d)/
+# Check for configuration drift
+tofu plan
+
+# Update VM packages (in VM)
+ssh -i ~/.ssh/admin_key admin@<vm-ip>
+sudo zypper update -y
+```
+
+### Backup
+
+```bash
+# Backup state files
+cp terraform.tfstate s3://my-backups/tfstate-$(date +%Y%m%d).json
+
+# Create VM snapshot
+qm snapshot <vm_id> pre-update-$(date +%Y%m%d)
+
+# Proxmox backup
+vzdump <vm_id> --mode snapshot --storage backup-storage
 ```
 
 ### Scaling Resources
 
 ```bash
-# Increase CPU cores
-vim terraform.tfvars  # Edit vm_cpu_cores
-tofu plan
+# Update terraform.tfvars
+vm_cpu_cores = 16
+vm_memory_dedicated = 49152
+
+# Apply changes (may require VM restart)
 tofu apply
-
-# Increase memory
-# vim terraform.tfvars  # Edit vm_memory_dedicated
-# tofu apply (may require VM restart)
-
-# Expand disk (more complex, may need qemu-img)
 ```
 
-## References and Documentation
+## References
 
-- [Proxmox VE Documentation](https://pve.proxmox.com/pve-docs/)
+### Official Documentation
+
 - [OpenTofu Documentation](https://opentofu.org/docs/)
-- [Proxmox OpenTofu Provider](https://github.com/bpg/terraform-provider-proxmox)
-- [AMD GPU Passthrough Guide](https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF)
-- [GPU Passthrough Tutorial](https://www.redhat.com/en/blog/gpu-passthrough-setup)
+- [Proxmox VE Documentation](https://pve.proxmox.com/pve-docs/)
+- [Proxmox Terraform Provider](https://github.com/bpg/terraform-provider-proxmox)
 - [OpenSUSE Leap Documentation](https://documentation.suse.com/)
+- [Cloud-Init Documentation](https://cloudinit.readthedocs.io/)
+
+### GPU Passthrough Guides
+
+- [Proxmox GPU Passthrough](https://pve.proxmox.com/wiki/PCI_Passthrough)
+- [AMD GPU Passthrough](https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF)
+- [NVIDIA GPU Passthrough](https://www.reddit.com/r/VFIO/)
+
+### Community Resources
+
+- [Proxmox Forum](https://forum.proxmox.com/)
+- [/r/Proxmox](https://www.reddit.com/r/Proxmox/)
+- [/r/VFIO](https://www.reddit.com/r/VFIO/)
 
 ## License
 
-This configuration is provided under the MIT License. See LICENSE file for details.
+This configuration is provided under the MIT License.
 
-## Support and Contributions
+## Contributing
 
-For issues, questions, or improvements:
+Issues, questions, and improvements are welcome!
 
-1. Check the [Troubleshooting](#troubleshooting) section
-2. Review Proxmox logs: `tail -f /var/log/pve/tasks`
-3. Check OpenTofu debugging: `TF_LOG=DEBUG tofu plan`
-4. Report issues with full output and configuration details
+1. Check [Known Issues](#known-issues) and [Troubleshooting](#troubleshooting)
+2. Review Proxmox logs: `tail -f /var/log/pve/tasks/active`
+3. Enable debug logging: `export TF_LOG=DEBUG`
+4. Report with full output and configuration (sanitize sensitive data)
 
 ---
 
-**Last Updated**: December 2025  
+**Version**: 1.0.0  
+**Last Updated**: December 18, 2024  
 **OpenTofu Version**: 1.6.0+  
-**Proxmox Version**: 8.0+
+**Proxmox Version**: 8.x+  
+**OpenSUSE Version**: Leap 15.6

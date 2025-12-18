@@ -47,6 +47,17 @@ variable "ssh_agent_option" {
   default     = true
 }
 
+variable "terraform_ssh_private_key_path" {
+  description = "Path to SSH private key for Proxmox host access"
+  type        = string
+  default     = "~/.ssh/id_rsa"
+
+  validation {
+    condition     = fileexists(var.terraform_ssh_private_key_path)
+    error_message = "SSH private key file not found at the specified path."
+  }
+}
+
 variable "connection_option_insecure" {
   description = "Skip TLS certificate verification (set to false in production)"
   type        = bool
@@ -124,6 +135,12 @@ variable "cloud_image_url" {
   sensitive   = false
 }
 
+variable "cloud_image_file_name" {
+  description = "File name for the downloaded cloud image in Proxmox storage"
+  type        = string
+  default     = "openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
+}
+
 variable "cloud_image_checksum" {
   description = "SHA256 checksum of openSUSE Leap 15.6 cloud image for verification"
   type        = string
@@ -145,6 +162,18 @@ variable "cloud_image_checksum_algorithm" {
     condition     = contains(["sha256", "sha512"], var.cloud_image_checksum_algorithm)
     error_message = "Checksum algorithm must be 'sha256' or 'sha512'"
   }
+}
+
+variable "vm_snippets_datastore_id" {
+  description = "Datastore ID for Proxmox snippets (cloud-init configuration storage)"
+  type        = string
+  default     = "local"
+}
+
+variable "vm_cloud_image_datastore_id" {
+  description = "Datastore ID for Proxmox cloud image storage"
+  type        = string
+  default     = "local"
 }
 
 variable "cloudinit_enabled" {
@@ -394,12 +423,6 @@ variable "vm_cpu_numa" {
   default     = false
 }
 
-variable "vm_kvm_arguments" {
-  description = "Custom KVM arguments for CPU features and Hyper-V enlightenments"
-  type        = string
-  default     = "-cpu 'host,hv_ipi,hv_relaxed,hv_reset,hv_runtime,hv_spinlocks=0x1fff,hv_stimer,hv_synic,hv_time,hv_vapic,hv_vpindex,kvm=off,+kvm_pv_eoi,+kvm_pv_unhalt'"
-}
-
 # -----------------------------------------------------------------------------
 # Memory Configuration Variables
 # -----------------------------------------------------------------------------
@@ -483,8 +506,8 @@ variable "vm_disk_size" {
   default     = 50
 
   validation {
-    condition     = var.vm_disk_size >= 5
-    error_message = "Boot disk must be at least 5 GB."
+    condition     = var.vm_disk_size >= 20
+    error_message = "Boot disk must be at least 30 GB."
   }
 }
 
