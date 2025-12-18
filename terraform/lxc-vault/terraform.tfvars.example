@@ -1,0 +1,268 @@
+# =============================================================================
+# Terraform Variables Configuration - HashiCorp Vault LXC Container
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# IMPORTANT: Do not commit terraform.tfvars to version control!
+# Add to .gitignore: echo "terraform.tfvars" >> .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Proxmox Connection (REQUIRED)
+# -----------------------------------------------------------------------------
+
+# Proxmox VE API endpoint
+# Example: "https://192.168.1.100:8006"
+proxmox_endpoint = "https://YOUR_PROXMOX_IP:8006"
+
+# API token: Create in Proxmox GUI -> Datacenter -> Permissions -> API Tokens
+# Format: user@realm!token_id=secret_value
+# Example: "terraform@pve!terraform-token=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+proxmox_api_token = "YOUR_USER@pve!YOUR_TOKEN_ID=YOUR_TOKEN_SECRET"
+
+# Proxmox node name (run 'hostname' on your Proxmox server)
+# Example: "pve", "proxmox1", "node1"
+proxmox_node = "pve"
+
+# SSH user for provisioner (usually root)
+proxmox_ssh_user = "root"
+
+# Skip TLS verification (set to false if you have valid certificates)
+# Recommended: false for production, true for self-signed certs
+connection_insecure = true
+
+# Use SSH agent for key management
+ssh_agent_enabled = true
+
+# -----------------------------------------------------------------------------
+# LXC Container Identity
+# -----------------------------------------------------------------------------
+
+# Unique container ID (must not conflict with existing VMs/containers)
+# Range: 100-999999999
+# Tip: Use 100-199 for containers, 200+ for VMs
+lxc_id = 109
+
+# Container hostname
+# Must start with letter, lowercase only, max 63 chars
+lxc_hostname = "vault"
+
+# Description shown in Proxmox GUI
+lxc_description = "HashiCorp Vault - Managed by OpenTofu"
+
+# Tags for organization (visible in Proxmox GUI)
+lxc_tags = ["vault", "secrets-management", "tofu-managed"]
+
+# -----------------------------------------------------------------------------
+# LXC Container Resources
+# -----------------------------------------------------------------------------
+
+# CPU cores (1-2 cores recommended for Vault)
+lxc_cpu_cores = 1
+
+# Memory in MB (1024-2048 MB recommended for production)
+lxc_memory = 1024
+
+# Swap in MB (can be 0 to disable, 512 MB recommended)
+lxc_swap = 512
+
+# Root disk size in GB (plan for secret storage growth)
+# Minimum: 8 GB, Recommended: 10-20 GB
+lxc_disk_size = 10
+
+# Storage pool for rootfs
+# Examples: "local-lvm", "local-zfs", "ceph-storage"
+lxc_disk_storage = "local-lvm"
+
+# Container startup priority (lower numbers start first)
+lxc_startup_order = 10
+
+# Startup delay in seconds
+lxc_up_delay = 10
+
+# Shutdown delay in seconds
+lxc_down_delay = 10
+
+# -----------------------------------------------------------------------------
+# LXC Container Template
+# -----------------------------------------------------------------------------
+
+# Storage containing LXC templates
+lxc_template_storage = "local"
+
+# Template filename (download first with: pveam download local <template>)
+# Available templates: pveam available | grep debian
+# Recommended: debian-13-standard_13.1-2_amd64.tar.zst
+lxc_template_file = "debian-13-standard_13.1-2_amd64.tar.zst"
+
+# Operating system type
+lxc_os_type = "debian"
+
+# -----------------------------------------------------------------------------
+# LXC Container Network
+# -----------------------------------------------------------------------------
+
+# Network bridge
+# Default bridge: "vmbr0"
+# For isolated network: "vmbr1", "vmbr2", etc.
+lxc_network_bridge = "vmbr0"
+
+# Network interface name inside container
+lxc_network_interface_name = "eth0"
+
+# IP address: "dhcp" or static with CIDR (e.g., "192.168.1.50/24")
+# Examples:
+#   "dhcp"              - for automatic IP assignment
+#   "192.168.1.50/24"   - for static IP
+#   "10.0.0.50/24"      - for different subnet
+lxc_ip_address = "192.168.1.50/24"
+
+# Gateway (required only for static IP, leave empty for DHCP)
+# Example: "192.168.1.1"
+lxc_gateway = "192.168.1.1"
+
+# DNS servers (space-separated)
+# Examples:
+#   "8.8.8.8 8.8.4.4"           - Google DNS
+#   "1.1.1.1 1.0.0.1"           - Cloudflare DNS
+#   "192.168.1.1 8.8.8.8"       - Local router + Google
+lxc_dns_servers = "8.8.8.8 8.8.4.4"
+
+# -----------------------------------------------------------------------------
+# LXC Container Security
+# -----------------------------------------------------------------------------
+
+# Run as unprivileged container (recommended for security)
+# Set to false only if you need privileged access
+lxc_unprivileged = true
+
+# Start container automatically on Proxmox boot
+lxc_start_on_boot = true
+
+# Protect from accidental deletion
+# Enable in production to prevent accidental removal
+lxc_protection = false
+
+# Enable nesting (required for systemd in container)
+# Must be true for Vault to run properly
+lxc_nesting = true
+
+# -----------------------------------------------------------------------------
+# LXC Container Authentication
+# -----------------------------------------------------------------------------
+
+# Root password for container (leave empty to auto-generate)
+# If empty, a secure 25-character password will be generated
+# Retrieve generated password: tofu output -raw lxc_root_password
+lxc_root_password = ""
+
+# Path to SSH public key file for root access
+# Generate key: ssh-keygen -t ed25519 -C "vault-container"
+# Examples:
+#   "~/.ssh/id_rsa.pub"
+#   "~/.ssh/id_ed25519.pub"
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+# -----------------------------------------------------------------------------
+# Ansible User Configuration
+# -----------------------------------------------------------------------------
+
+# Enable dedicated Ansible user for automation
+# Recommended: true for automated management via Ansible
+ansible_user_enabled = false
+
+# Username for Ansible automation
+# Must start with letter, lowercase only, max 32 chars
+ansible_user_name = "ansible"
+
+# Path to SSH public key for Ansible user
+# IMPORTANT: Use a separate key from root for better security
+# Generate: ssh-keygen -t ed25519 -C "ansible@vault" -f ~/.ssh/ansible_vault
+# Then use: "~/.ssh/ansible_vault.pub"
+ansible_ssh_public_key_path = "~/.ssh/ansible_rsa.pub"
+
+# Grant Ansible user passwordless sudo access
+# true  = Full sudo without password (NOPASSWD:ALL)
+# false = No sudo access
+# Recommended: true for automation, false for read-only access
+ansible_user_sudo = true
+
+# Specific sudo commands allowed (empty = all commands if sudo enabled)
+# Example for limited access:
+#   ["/bin/systemctl restart vault", "/bin/systemctl status vault", "/usr/bin/vault"]
+# Leave empty for full sudo access
+ansible_user_sudo_commands = []
+
+# Additional groups for Ansible user
+# sudo group is added automatically if ansible_user_sudo=true
+# Common groups:
+#   ["docker"]        - if managing Docker containers
+#   ["vault"]         - for read access to Vault files (use carefully)
+#   ["adm", "systemd-journal"] - for log access
+ansible_user_groups = []
+
+# Shell for Ansible user
+# Options: "/bin/bash", "/bin/sh", "/bin/zsh", "/bin/dash"
+ansible_user_shell = "/bin/bash"
+
+# -----------------------------------------------------------------------------
+# Password Generation Settings
+# -----------------------------------------------------------------------------
+
+# Length of auto-generated passwords (minimum 16, recommended 25+)
+password_length = 25
+
+# Special characters allowed in passwords
+password_special_chars = "!@#$%^&*"
+
+# Minimum character counts for generated passwords
+password_lower_chars_count         = 4
+password_upper_chars_count         = 4
+password_upper_numeric_count       = 4
+password_upper_special_chars_count = 4
+
+# -----------------------------------------------------------------------------
+# Vault Configuration
+# -----------------------------------------------------------------------------
+
+# Vault HTTP port (default: 8200)
+# Change only if you have port conflicts
+vault_port = 8200
+
+# -----------------------------------------------------------------------------
+# State File Encryption
+# -----------------------------------------------------------------------------
+
+# Passphrase file path for state encryption
+# Create passphrase: openssl rand -base64 32 > ~/.ssh/vault_state_passphrase
+# Set permissions: chmod 600 ~/.ssh/vault_state_passphrase
+passphrase = "~/.ssh/vault_state_passphrase"
+
+# Encryption key length in bytes (32 = 256-bit encryption)
+key_length = 32
+
+# PBKDF2 iterations (higher = more secure but slower)
+# Minimum recommended: 600000
+key_iterations = 600000
+
+# Salt length for key derivation
+key_salt_length = 32
+
+# Hash function for key derivation (sha256 or sha512)
+# Recommended: sha512 for stronger security
+key_hash_function = "sha512"
+
+# -----------------------------------------------------------------------------
+# AWS Configuration (for S3 Backend State Storage)
+# -----------------------------------------------------------------------------
+
+# AWS region where S3 bucket is located
+# Common regions:
+#   us-east-1      - N. Virginia
+#   us-west-2      - Oregon
+#   eu-west-1      - Ireland
+#   eu-central-1   - Frankfurt
+#   ap-southeast-1 - Singapore
+aws_region = "us-east-1"
+
