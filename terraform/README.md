@@ -12,7 +12,7 @@ terraform/
 ├── ubuntu-server/       # Ubuntu Server VM with cloud-init
 ├── lxc-grafana/         # Grafana LXC container
 ├── fedora_core/         # Fedora CoreOS VM with Ignition
-└── opensuseLeap/        # OpenSUSE Leap 16 workstation with GPU passthrough
+└── opensuseLeap/        # OpenSUSE Leap 15.6 cloud-image workstation with GPU passthrough
 ```
 
 ## 📋 Available Templates
@@ -96,7 +96,7 @@ ssh core@<vm-ip>
 
 ### opensuseLeap
 
-**Purpose**: Deploy OpenSUSE Leap 16 workstations with GPU and USB passthrough.
+**Purpose**: Deploy OpenSUSE Leap 15.6 cloud-image workstations with GPU and USB passthrough.
 
 **Features**:
 
@@ -107,7 +107,7 @@ ssh core@<vm-ip>
 - QEMU Guest Agent integration
 - Hyper-V enlightenments for efficiency
 - State file encryption (PBKDF2-AES-GCM)
-- AWS S3 backend support
+- AWS S3 backend support with state file locking
 - Comprehensive GPU discovery helper scripts
 
 **Use Cases**:
@@ -179,7 +179,7 @@ Or use local state by modifying `backend.tf`.
 ### Required Variables
 
 | Variable | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `proxmox_api_url` | Proxmox API URL (<https://host:8006>) |
 | `proxmox_api_token` | API token (user@realm!token=secret) |
 | `proxmox_node` | Target Proxmox node name |
