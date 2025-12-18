@@ -1,5 +1,5 @@
 # =============================================================================
-# Outputs - LXC Grafana Container
+# Outputs - LXC Vault Container
 # =============================================================================
 #
 # This file defines the output values exposed after Terraform applies the
@@ -11,7 +11,6 @@
 #
 # Usage:
 #   tofu output                           # Show all non-sensitive outputs
-#   tofu output -raw grafana_admin_password  # Get Grafana admin password
 #   tofu output -raw lxc_root_password    # Get container root password
 #   tofu output -json                     # Get all outputs as JSON
 #
