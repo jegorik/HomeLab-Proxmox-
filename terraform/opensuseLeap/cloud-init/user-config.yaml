@@ -1,0 +1,128 @@
+#cloud-config
+# =============================================================================
+# Cloud-Init User Data Configuration for OpenSUSE Leap 15.6
+# =============================================================================
+# This cloud-init configuration automates VM provisioning with:
+# - Two user accounts (ansible service account + admin user)
+# - SSH key-based authentication (no password login)
+# - Essential package installation
+# - SSH hardening and firewall configuration
+# - QEMU guest agent setup
+#
+# Template Variables (injected by Terraform):
+# - ${hostname}: VM hostname
+# - ${admin_username}: Administrative user account name
+# - ${ansible_ssh_key}: Public SSH key for ansible user
+# - ${admin_ssh_key}: Public SSH key for admin user
+#
+# Execution: Runs once on first boot of cloud image
+# Logs: /var/log/cloud-init.log and /var/log/cloud-init-output.log
+# Status: Check with 'sudo cloud-init status'
+# =============================================================================
+
+# Basic system configuration
+hostname: ${hostname}
+timezone: UTC
+locale: en_US.UTF-8
+
+# Security: Disable password authentication, disable root login
+ssh_pwauth: false      # No password login via SSH (keys only)
+disable_root: true     # Root account cannot login directly
+
+# User account configuration
+users:
+  # Keep default user created by cloud image (usually 'opensuse')
+  - default
+
+  # Ansible Service Account
+  # Purpose: Automated configuration management and provisioning
+  # Security: Passwordless sudo for automation, SSH key auth only
+  # Usage: ansible-playbook -i inventory.yml playbook.yml -u ansible
+  - name: ansible
+    gecos: "Ansible Automation Service Account"
+    groups: [wheel]              # wheel = sudo group in openSUSE
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ansible_ssh_key}       # Injected from Terraform variable
+    sudo: ALL=(ALL) NOPASSWD:ALL # Passwordless sudo for automation
+    lock_passwd: true            # No password login (SSH keys only)
+    system: false                # Not a system account
+    homedir: /home/ansible
+
+  # Administrative User Account
+  # Purpose: Manual system administration and maintenance
+  # Security: Password-required sudo, SSH key auth for login
+  # Usage: ssh ${admin_username}@<vm-ip> -i ~/.ssh/admin_key
+  - name: ${admin_username}
+    gecos: "System Administrator"
+    groups: [wheel, libvirt, kvm] # wheel=sudo, libvirt/kvm=virtualization
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${admin_ssh_key}          # Injected from Terraform variable
+    sudo: ALL=(ALL) ALL            # Sudo with password required
+    lock_passwd: false             # Password can be set later if needed
+    system: false                  # Not a system account
+    homedir: /home/${admin_username}
+
+# Package management: Update system and install essential packages
+package_update: true   # Run 'zypper refresh' to update package lists
+package_upgrade: true  # Run 'zypper update' to upgrade installed packages
+
+packages:
+  # System monitoring and VM integration
+  - qemu-guest-agent        # Required for Proxmox VM management and IP detection
+  - systemd                 # System and service manager
+  - curl                    # HTTP client for downloading files
+  - wget                    # Alternative HTTP downloader
+  - git                     # Version control system
+  - htop                    # Interactive process viewer
+  - net-tools-deprecated    # openSUSE package for ifconfig, netstat, route
+  - vim                     # Vi IMproved text editor
+  - nano                    # Simple text editor
+  - tmux                    # Terminal multiplexer
+  - openssh                 # SSH client and server
+
+  # Python development environment
+  # Required for Ansible and most automation tools
+  - python3                 # Python 3 interpreter
+  - python3-pip             # Python package manager
+  - python3-devel           # Python development headers
+
+  # Development tools and compilers
+  # IMPORTANT: openSUSE uses 'patterns' instead of meta-packages
+  - patterns-devel-base-devel_basis  # openSUSE equivalent of build-essential
+  - gcc                     # GNU C compiler
+  - make                    # Build automation tool
+
+  # Core utilities
+  - sudo                    # Execute commands as other users
+  - dbus-1                  # openSUSE package for D-Bus message bus (not dbus-daemon)
+  - ca-certificates         # SSL/TLS certificate authorities
+
+# Commands to run after package installation
+# These commands run in sequence during cloud-init final stage
+runcmd:
+  # Enable and start QEMU guest agent
+  # Required for Proxmox to detect VM IP address and manage VM
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+
+  # SSH server hardening
+  # Security best practices: disable root login, require keys, block passwords
+  - sed -i 's/#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+  - sed -i 's/#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - sed -i 's/#PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+  - systemctl reload sshd  # Apply SSH configuration changes
+
+  # Firewall configuration
+  # Enable firewalld and allow SSH connections
+  - systemctl enable firewalld
+  - firewall-cmd --permanent --add-service=ssh  # Allow SSH through firewall
+  - firewall-cmd --reload                       # Apply firewall rules
+
+  # Log completion timestamp for troubleshooting
+  - echo "Cloud-init completed at $(date)" | tee /var/log/cloud-init-done.log
+
+# Final message displayed when cloud-init completes
+# Visible in /var/log/cloud-init-output.log and console
+final_message: "openSUSE Leap 15.6 VM provisioned successfully in $UPTIME seconds"

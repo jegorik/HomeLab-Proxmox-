@@ -50,6 +50,28 @@ terraform {
     key_provider "pbkdf2" "generated_passphrase" {
       # Path to file containing the encryption passphrase
       # Security: File should be outside repository with chmod 600 permissions
+      #
+      # Passphrase File Setup:
+      # 1. Create passphrase file:
+      #    echo "your-strong-passphrase-min-16-characters" > ~/.ssh/state_passphrase
+      # 2. Set strict permissions:
+      #    chmod 600 ~/.ssh/state_passphrase
+      # 3. Update terraform.tfvars:
+      #    passphrase = "~/.ssh/state_passphrase"
+      #
+      # Passphrase Strength Requirements:
+      # - Minimum 16 characters (recommended 32+)
+      # - Mix of uppercase, lowercase, numbers, symbols
+      # - Avoid dictionary words
+      # - Use password manager to generate
+      #
+      # Example strong passphrase generation:
+      #   openssl rand -base64 32 > ~/.ssh/state_passphrase
+      #   chmod 600 ~/.ssh/state_passphrase
+      #
+      # ⚠️ WARNING: NEVER commit passphrase file to version control!
+      # Add to .gitignore:
+      #   echo "*_passphrase" >> .gitignore
       passphrase = file(var.passphrase)
 
       # Encryption key length in bytes (32 bytes = 256 bits)

@@ -1,5 +1,5 @@
 # =============================================================================
-# OpenSUSE Leap 16 VM Configuration Values - EXAMPLE TEMPLATE
+# OpenSUSE Leap 15.6 VM Configuration Values - EXAMPLE TEMPLATE
 # =============================================================================
 # This file is a template for creating terraform.tfvars with your actual values.
 #
@@ -60,8 +60,8 @@ proxmox_node_name = "pve"  # Name of Proxmox node hosting the VM
 # --------------------------------------------------------------------------
 
 vm_id          = 110  # Use a different VM ID in your environment
-vm_name        = "opensuseLeap16-workstation"
-vm_description = "OpenSUSE Leap 16 workstation with GPU passthrough, managed by OpenTofu"
+vm_name        = "opensuseLeap15.6-workstation"
+vm_description = "OpenSUSE Leap 15.6 workstation with GPU passthrough, managed by OpenTofu"
 vm_tags        = ["tofu-managed", "workstation", "gpu-passthrough"]
 
 # --------------------------------------------------------------------------
@@ -279,7 +279,50 @@ vm_usb_device_4_host = ""  # Leave empty if not used or add your device
 vm_usb_device_4_usb3 = false
 
 # --------------------------------------------------------------------------
-# Timeout Configuration
+# VM Creation and Cloud-Init Configuration
+# --------------------------------------------------------------------------
+# Control automatic VM creation and cloud-init user provisioning
+
+# Set to true for new VMs (automatic cloud image download and provisioning)
+# Set to false to manage existing VMs in Proxmox
+vm_create_new = false
+
+# Download openSUSE cloud image automatically to Proxmox storage
+# Only downloads if image doesn't exist (safe to re-run)
+cloud_image_download = true
+
+# Cloud image URL and checksum for verification
+# Use official openSUSE repository
+cloud_image_url = "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_15.6/images/openSUSE-Leap-15.6.x86_64-NoCloud.qcow2"
+cloud_image_checksum = "75e6c617a898aed970dd52f2f67de87a6392fbf9ce30d9ead2b1dbf8f2f36194"
+cloud_image_checksum_algorithm = "sha256"
+
+# Enable cloud-init provisioning for automated user configuration
+# Creates ansible service account and admin user with SSH keys
+cloudinit_enabled = true
+
+# Administrative user account name (will have sudo privileges)
+cloudinit_admin_username = "admin"
+
+# SSH public key paths for automated management
+# Generate keys with: ssh-keygen -t ed25519 -f ~/.ssh/ansible_key -N ''
+#                    ssh-keygen -t ed25519 -f ~/.ssh/admin_key -N ''
+ansible_ssh_key_path = "~/.ssh/ansible_key.pub"
+admin_ssh_key_path   = "~/.ssh/admin_key.pub"
+
+# DNS Configuration for cloud-init
+# Leave empty to use Proxmox/host defaults
+cloudinit_dns_domain  = "local"
+cloudinit_dns_servers = []  # Empty = use Proxmox defaults, or ["1.1.1.1", "8.8.8.8"]
+
+# IP Configuration
+# Set cloudinit_use_dhcp = true for DHCP (recommended for home lab)
+# Set cloudinit_use_dhcp = false for static IP (requires ipv4_address and gateway)
+cloudinit_use_dhcp        = true
+cloudinit_ipv4_address    = ""  # Example: "192.168.1.100/24" (required if use_dhcp = false)
+cloudinit_ipv4_gateway    = ""  # Example: "192.168.1.1" (required if use_dhcp = false)
+
+# --------------------------------------------------------------------------
 # Adjust these if you experience timeout errors during deployment
 # --------------------------------------------------------------------------
 
