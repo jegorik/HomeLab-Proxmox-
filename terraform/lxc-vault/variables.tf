@@ -76,13 +76,13 @@ variable "lxc_hostname" {
 variable "lxc_description" {
   description = "Container description shown in Proxmox GUI"
   type        = string
-  default     = "Grafana monitoring dashboard - Managed by OpenTofu"
+  default     = "HashiCorp Vault secrets management - Managed by OpenTofu"
 }
 
 variable "lxc_tags" {
   description = "Tags for container organization in Proxmox"
   type        = list(string)
-  default     = ["grafana", "monitoring", "tofu-managed"]
+  default     = ["vault", "secrets", "tofu-managed"]
 }
 
 # -----------------------------------------------------------------------------
@@ -384,7 +384,7 @@ variable "password_special_chars" {
 
 variable "passphrase" {
   # Change passphrase to be at least 16 characters long:
-  description = "Passphrase for state file encryption"
+  description = "Passphrase file location for state file encryption"
   type        = string
   default     = "~/.ssh/state_passphrase"
   sensitive   = true
