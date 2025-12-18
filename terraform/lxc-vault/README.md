@@ -17,7 +17,7 @@ This project automates the deployment of HashiCorp Vault in a Proxmox LXC contai
 
 ### Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │         Proxmox VE Host                     │
 │  ┌───────────────────────────────────────┐  │
@@ -39,14 +39,17 @@ This project automates the deployment of HashiCorp Vault in a Proxmox LXC contai
 
 1. **Proxmox VE Server** (7.4+ or 8.x)
 2. **OpenTofu** or **Terraform** (1.5+)
+
    ```bash
    # Install OpenTofu (recommended)
    curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh | bash
    ```
+
 3. **SSH Key Pair** for container access
 4. **Proxmox API Token** with appropriate permissions
 5. **AWS Credentials** (for S3 backend state storage)
 6. **LXC Template** downloaded on Proxmox:
+
    ```bash
    pveam download local debian-13-standard_13.1-2_amd64.tar.zst
    ```
@@ -129,8 +132,10 @@ ansible_user_groups          = []  # Additional groups if needed
 ```
 
 **Security Recommendations:**
+
 - Use a separate SSH key for Ansible (not the same as root)
 - For production, limit sudo commands instead of full access:
+
   ```hcl
   ansible_user_sudo_commands = [
     "/bin/systemctl restart vault",
@@ -191,12 +196,13 @@ shred -u vault-keys.txt
 
 1. **Access Proxmox Web UI**: `https://your-proxmox:8006`
 2. **Navigate to**: Datacenter → Permissions → API Tokens
-3. **Create Token**: 
+3. **Create Token**:
    - User: `terraform@pve`
    - Token ID: `terraform-token`
    - Privilege Separation: ✅ Unchecked (for full permissions)
 4. **Required Permissions** (on `/` path):
-   ```
+
+   ```text
    Datastore.AllocateSpace
    Datastore.AllocateTemplate
    Datastore.Audit
@@ -212,11 +218,13 @@ shred -u vault-keys.txt
 ### AWS S3 Backend Setup
 
 1. **Create S3 Bucket**:
+
    ```bash
    aws s3 mb s3://your-terraform-state-bucket --region us-east-1
    ```
 
 2. **Enable Versioning**:
+
    ```bash
    aws s3api put-bucket-versioning \
      --bucket your-terraform-state-bucket \
@@ -224,6 +232,7 @@ shred -u vault-keys.txt
    ```
 
 3. **Enable Encryption**:
+
    ```bash
    aws s3api put-bucket-encryption \
      --bucket your-terraform-state-bucket \
@@ -237,6 +246,7 @@ shred -u vault-keys.txt
    ```
 
 4. **Block Public Access**:
+
    ```bash
    aws s3api put-public-access-block \
      --bucket your-terraform-state-bucket \
@@ -261,6 +271,7 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 ### Container Security
 
 ✅ **Implemented:**
+
 - Unprivileged LXC container (rootless)
 - Dedicated system user for Vault
 - Nesting enabled for systemd
@@ -268,6 +279,7 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 - SSH key-based authentication only
 
 ❌ **Not Implemented (TODO):**
+
 - TLS/SSL encryption (use reverse proxy)
 - Firewall rules (iptables/nftables)
 - AppArmor/SELinux profiles
@@ -276,18 +288,22 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 ### Vault Security
 
 ✅ **Configured:**
+
 - File-based storage backend
 - Secure initialization key handling
 - Memory lock capability (CAP_IPC_LOCK)
 - Systemd hardening options
 
 ⚠️ **Production Recommendations:**
+
 - Enable TLS (via reverse proxy like Nginx/Traefik)
 - Use cloud storage backend (Consul, etcd, S3)
 - Enable audit logging:
+
   ```bash
   vault audit enable file file_path=/var/log/vault/audit.log
   ```
+
 - Configure auto-unseal (AWS KMS, Transit)
 - Implement backup strategy for Vault data
 - Set up monitoring and alerting
@@ -297,6 +313,7 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 ### State File Security
 
 ✅ **Implemented:**
+
 - AES-GCM encryption for local state
 - PBKDF2 key derivation (600,000 iterations)
 - S3 server-side encryption
@@ -308,7 +325,7 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 ### Default Allocations
 
 | Resource | Default | Minimum | Recommended |
-|----------|---------|---------|-------------|
+| ---------- | --------- | --------- | ------------- |
 | CPU Cores | 1 | 1 | 2 |
 | Memory | 1024 MB | 512 MB | 2048 MB |
 | Swap | 512 MB | 0 MB | 512 MB |
@@ -459,6 +476,7 @@ tofu output -raw ansible_inventory_entry
 ### Using with Ansible
 
 1. **Add to your inventory.yml**:
+
    ```yaml
    all:
      children:
@@ -472,11 +490,13 @@ tofu output -raw ansible_inventory_entry
    ```
 
 2. **Test connection**:
+
    ```bash
    ansible vault_servers -m ping
    ```
 
 3. **Example playbook** (vault_manage.yml):
+
    ```yaml
    ---
    - name: Manage Vault Service
@@ -501,6 +521,7 @@ tofu output -raw ansible_inventory_entry
    ```
 
 4. **Run playbook**:
+
    ```bash
    ansible-playbook -i inventory.yml vault_manage.yml
    ```
@@ -754,6 +775,7 @@ This configuration is designed for development and homelab environments. For pro
 ## 📧 Support
 
 For issues and questions:
+
 1. Check the troubleshooting section
 2. Review Vault and Terraform documentation
 3. Check Proxmox system logs
@@ -761,7 +783,6 @@ For issues and questions:
 
 ---
 
-**Built with ❤️ for HomeLab enthusiasts**
+ Built with ❤️ for HomeLab enthusiasts
 
 *Last Updated: December 2025*
-

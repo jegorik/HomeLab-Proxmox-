@@ -33,6 +33,12 @@ examples and find concise guidance for each component.
     - Unprivileged container with Ubuntu 24.04 LTS
     - Automated Grafana OSS installation via provisioner
     - Security hardening and SSH key authentication
+  - [`lxc-vault/`](terraform/lxc-vault/) — HashiCorp Vault LXC container for secrets management.
+    - Unprivileged container with Debian 13
+    - Automated Vault installation and initialization
+    - State file encryption with PBKDF2-AES-GCM
+    - S3 remote state backend with locking support
+    - Systemd service integration and optional Ansible user
   - [`fedora_core/`](terraform/fedora_core/) — Fedora CoreOS VM for container workloads.
     - Immutable OS designed for containerized applications (Podman/Docker)
     - **Single-stage Cloud-Init deployment** with native Ignition support

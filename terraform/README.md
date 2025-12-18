@@ -11,6 +11,7 @@ Infrastructure as Code templates for Proxmox VE virtual machines and containers.
 terraform/
 ├── ubuntu-server/       # Ubuntu Server VM with cloud-init
 ├── lxc-grafana/         # Grafana LXC container
+├── lxc-vault/           # HashiCorp Vault LXC container for secrets management
 ├── fedora_core/         # Fedora CoreOS VM with Ignition
 └── opensuseLeap/        # OpenSUSE Leap 15.6 cloud-image workstation with GPU passthrough
 ```
@@ -58,6 +59,47 @@ cp terraform.tfvars.example terraform.tfvars
 nano terraform.tfvars  # Configure settings
 tofu init
 tofu apply
+```
+
+### lxc-vault
+
+**Purpose**: Deploy HashiCorp Vault for secrets management in an LXC container.
+
+**Features**:
+
+- Unprivileged container for enhanced security
+- Automated Vault installation and initialization
+- Secure password generation with configurable complexity
+- State file encryption using PBKDF2-AES-GCM
+- S3 remote state backend with locking support
+- SSH key-based authentication
+- Systemd service integration
+- Optional Ansible user provisioning for automation
+
+**Quick Start**:
+
+```bash
+cd lxc-vault
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Configure Proxmox, network, resources
+
+# Generate state encryption passphrase
+openssl rand -base64 32 > ~/.ssh/vault_state_passphrase
+chmod 600 ~/.ssh/vault_state_passphrase
+
+# Configure S3 backend
+nano s3.backend.config  # Add bucket, region, profile
+
+# Deploy
+tofu init -backend-config=s3.backend.config
+tofu plan
+tofu apply
+
+# Secure Vault keys immediately after deployment
+scp root@<vault-ip>:/root/vault-keys.txt .
+# Store keys in password manager
+ssh root@<vault-ip> 'shred -u /root/vault-keys.txt'
+shred -u vault-keys.txt
 ```
 
 ### fedora_core
