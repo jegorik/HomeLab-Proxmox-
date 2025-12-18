@@ -7,6 +7,7 @@
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+*.backend.config
 
 # Terraform/OpenTofu Variable Files
 # Contains sensitive configuration like API tokens and passwords
