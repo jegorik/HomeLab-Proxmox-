@@ -46,7 +46,7 @@ profile = "tofu-aws-profile"
 
 # Path to AWS credentials file (default: ~/.aws/credentials)
 # Contains access key ID and secret access key
-shared_credentials_file = "/home/your_username/.aws/credentials"
+shared_credentials_files = ["/home/your_username/.aws/credentials"]
 
 # Paths to AWS config files (default: ~/.aws/config)
 # Contains region and other AWS CLI configuration
