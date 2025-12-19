@@ -1,0 +1,89 @@
+# =============================================================================
+# AWS S3 Backend Configuration for OpenTofu State Storage
+# =============================================================================
+# This file configures remote state storage in AWS S3 with state locking (uses S3 native locking).
+# Use this file during initialization to enable remote state backend.
+#
+# Usage:
+#   tofu init -backend-config=s3.backend.config
+#
+# Prerequisites:
+# 1. AWS S3 bucket created for state storage
+# 2. AWS credentials configured in ~/.aws/credentials
+#
+# Required IAM Permissions:
+# - s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject
+#
+# Security Best Practices:
+# - Enable S3 bucket versioning for state history
+# - Enable S3 bucket encryption at rest (AES-256 or KMS)
+# - Restrict bucket access with IAM policies
+# - Use VPC endpoint for S3 access (if running from EC2)
+# - Enable CloudTrail logging for S3 bucket access
+# - Consider using state encryption in addition to S3 encryption
+#
+# References:
+# - OpenTofu S3 Backend: https://opentofu.org/docs/language/settings/backends/s3/
+# - AWS S3 Best Practices: https://docs.aws.amazon.com/s3/
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# S3 Backend Configuration
+# -----------------------------------------------------------------------------
+
+# S3 bucket name where state files are stored
+# IMPORTANT: Change this to your own bucket name
+bucket = "your-bucket-name"
+
+# Object key path within the S3 bucket
+# Format: <project>/<environment>/<component>.tfstate
+# This prevents state file conflicts across multiple deployments
+key = "/s3-bucket-path-to-store/vault.tfstate"
+
+# AWS CLI profile to use for authentication
+# Must match a profile in ~/.aws/credentials or ~/.aws/config
+profile = "tofu-aws-profile"
+
+# Path to AWS credentials file (default: ~/.aws/credentials)
+# Contains access key ID and secret access key
+shared_credentials_file = "/home/your_username/.aws/credentials"
+
+# Paths to AWS config files (default: ~/.aws/config)
+# Contains region and other AWS CLI configuration
+shared_config_files = ["/home/your_username/.aws/config"]
+
+# -----------------------------------------------------------------------------
+# Optional Advanced Configuration
+# -----------------------------------------------------------------------------
+# Uncomment and configure as needed:
+
+# AWS region where S3 bucket is located
+# region = "eu-central-1"
+
+#(Optional) Tags to be applied to the lock object.
+lock_tags = {"lock-owner":"opentofu"}
+
+# S3 enable state locking (prevents concurrent modifications)
+use_lockfile = true
+
+# Enable S3 server-side encryption with AWS KMS
+# encrypt = true
+# kms_key_id = "arn:aws:kms:REGION:ACCOUNT:key/KEY-ID"
+
+# IAM role ARN to assume for S3 access (useful for cross-account access)
+# role_arn = "arn:aws:iam::ACCOUNT:role/TerraformStateRole"
+
+# Workspace key prefix for multi-environment support
+# workspace_key_prefix = "workspaces"
+
+# Skip AWS credentials validation (not recommended for production)
+# skip_credentials_validation = false
+
+# Skip AWS region validation
+# skip_region_validation = false
+
+# Skip requesting S3 bucket location
+# skip_requesting_account_id = false
+
+# Maximum number of times to retry S3 API calls
+# max_retries = 5
