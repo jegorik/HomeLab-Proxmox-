@@ -87,7 +87,7 @@
     - superuser_create.rc != 0
     - "'already taken' not in superuser_create.stderr"
   register: superuser_create
-  no_log: false
+  no_log: true
   tags: ['superuser']
 
 - name: Display superuser information
