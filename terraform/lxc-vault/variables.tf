@@ -107,7 +107,7 @@ variable "lxc_memory" {
 
   validation {
     condition     = var.lxc_memory >= 512
-    error_message = "Minimum memory is 512 MB for Grafana."
+    error_message = "Minimum memory is 512 Mb."
   }
 }
 
