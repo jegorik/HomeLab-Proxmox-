@@ -151,7 +151,7 @@
   ansible.builtin.set_fact:
     netbox_secret_key: "{{ vault_secrets.json.data.data.secret_key }}"
     netbox_db_password: "{{ vault_secrets.json.data.data.db_password | default(netbox_db_password) }}"
-  no_log: false
+  no_log: true
   tags: ['vault', 'secrets']
 
 - name: Create NetBox configuration from template
