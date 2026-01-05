@@ -1,0 +1,10 @@
+---
+# NetBox role handlers
+
+- name: restart netbox services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - netbox
+    - netbox-rq

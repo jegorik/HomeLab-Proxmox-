@@ -1,0 +1,128 @@
+---
+# =============================================================================
+# PostgreSQL Installation and Configuration Role
+# =============================================================================
+# Installs PostgreSQL 17 from Debian 13 repositories and configures database
+# for NetBox application with secure credentials from Vault
+# =============================================================================
+
+- name: Install PostgreSQL server and client
+  ansible.builtin.apt:
+    name:
+      - postgresql-{{ postgres_version }}
+      - postgresql-client-{{ postgres_version }}
+      - python3-psycopg2  # Required for Ansible PostgreSQL modules
+    state: present
+    update_cache: true
+  tags: ['install']
+
+- name: Ensure PostgreSQL service is running and enabled
+  ansible.builtin.systemd:
+    name: postgresql
+    state: started
+    enabled: true
+  tags: ['service']
+
+- name: Check if database password exists in Vault
+  ansible.builtin.uri:
+    url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+    return_content: true
+    status_code: [200, 404]
+  register: vault_check
+  no_log: true
+  tags: ['vault', 'secrets']
+
+- name: Retrieve NetBox database password from Vault
+  ansible.builtin.set_fact:
+    netbox_db_password: "{{ vault_check.json.data.data.db_password }}"
+  no_log: true
+  when: vault_check.status == 200 and vault_check.json.data.data.db_password is defined
+  tags: ['vault', 'secrets']
+
+- name: Generate database password if not in Vault
+  when: netbox_db_password is not defined
+  block:
+    - name: Generate secure database password
+      ansible.builtin.set_fact:
+        netbox_db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+      no_log: true
+
+    - name: Get existing Vault data
+      ansible.builtin.set_fact:
+        existing_vault_data: "{{ vault_check.json.data.data | default({}) }}"
+      when: vault_check.status == 200
+
+    - name: Merge db_password with existing data
+      ansible.builtin.set_fact:
+        vault_data_to_save: "{{ existing_vault_data | default({}) | combine({'db_password': netbox_db_password}) }}"
+      no_log: true
+
+    - name: Store database password in Vault
+      ansible.builtin.uri:
+        url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+        body_format: json
+        body:
+          data: "{{ vault_data_to_save }}"
+        status_code: [200, 204]
+      no_log: true
+  rescue:
+    - name: Password generation from Vault lookup failed, using generated password
+      ansible.builtin.debug:
+        msg: "Using newly generated database password"
+  tags: ['vault', 'secrets']
+
+- name: Create NetBox database user
+  community.postgresql.postgresql_user:
+    name: "{{ netbox_db_user }}"
+    password: "{{ netbox_db_password }}"
+    state: present
+    encrypted: true
+  become: true
+  become_user: postgres
+  no_log: true
+  tags: ['database', 'user']
+
+- name: Create NetBox database
+  community.postgresql.postgresql_db:
+    name: "{{ netbox_db_name }}"
+    owner: "{{ netbox_db_user }}"
+    encoding: UTF8
+    lc_collate: C.UTF-8
+    lc_ctype: C.UTF-8
+    template: template0
+    state: present
+  become: true
+  become_user: postgres
+  tags: ['database']
+
+- name: Grant all privileges on database to NetBox user
+  community.postgresql.postgresql_privs:
+    database: "{{ netbox_db_name }}"
+    state: present
+    privs: ALL
+    type: database
+    role: "{{ netbox_db_user }}"
+  become: true
+  become_user: postgres
+  tags: ['database', 'permissions']
+
+- name: Configure PostgreSQL to allow local connections
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql/{{ postgres_version }}/main/pg_hba.conf
+    regexp: '^local\s+all\s+{{ netbox_db_user }}'
+    line: "local   {{ netbox_db_name }}    {{ netbox_db_user }}                                md5"
+    insertafter: '^# TYPE'
+  notify: restart postgresql
+  tags: ['configuration']
+
+- name: Reload PostgreSQL configuration
+  ansible.builtin.systemd:
+    name: postgresql
+    state: reloaded
+  tags: ['configuration']

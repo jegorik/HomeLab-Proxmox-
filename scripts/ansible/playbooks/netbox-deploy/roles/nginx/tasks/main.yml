@@ -1,0 +1,84 @@
+---
+# =============================================================================
+# Nginx Reverse Proxy Configuration Role
+# =============================================================================
+# Configures Nginx as reverse proxy for NetBox with port detection (80 or 8300)
+# =============================================================================
+
+- name: Install Nginx web server
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+  tags: ['install']
+
+- name: Check if port 80 is available
+  ansible.builtin.wait_for:
+    port: "{{ nginx_primary_port }}"
+    state: stopped
+    timeout: 5
+  register: port_80_check
+  ignore_errors: true
+  tags: ['port-check']
+
+- name: Set Nginx listen port based on availability
+  ansible.builtin.set_fact:
+    nginx_configured_port: "{{ nginx_primary_port if port_80_check is succeeded else nginx_fallback_port }}"
+  tags: ['port-check']
+
+- name: Display selected Nginx port
+  ansible.builtin.debug:
+    msg: "Nginx will listen on port {{ nginx_configured_port }} ({{ 'primary' if nginx_configured_port|int == nginx_primary_port else 'fallback' }})"
+  tags: ['port-check']
+
+- name: Remove default Nginx site configuration
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+  tags: ['configuration']
+
+- name: Create NetBox Nginx configuration
+  ansible.builtin.template:
+    src: netbox.nginx.conf.j2
+    dest: /etc/nginx/sites-available/netbox
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart nginx
+  tags: ['configuration']
+
+- name: Enable NetBox Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/netbox
+    dest: /etc/nginx/sites-enabled/netbox
+    state: link
+  notify: restart nginx
+  tags: ['configuration']
+
+- name: Test Nginx configuration
+  ansible.builtin.command: nginx -t
+  register: nginx_test
+  changed_when: false
+  tags: ['verification']
+
+- name: Ensure Nginx service is running and enabled
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: true
+  tags: ['service']
+
+- name: Flush handlers to apply Nginx configuration
+  ansible.builtin.meta: flush_handlers
+  tags: ['service', 'verification']
+
+- name: Wait for NetBox to be available via Nginx
+  ansible.builtin.uri:
+    url: "http://localhost:{{ nginx_configured_port }}"
+    status_code: [200, 301, 302]
+  register: netbox_health_check
+  until: netbox_health_check is succeeded
+  retries: 10
+  delay: 5
+  tags: ['verification']

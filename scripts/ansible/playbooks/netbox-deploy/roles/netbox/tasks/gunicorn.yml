@@ -1,0 +1,14 @@
+---
+# =============================================================================
+# Gunicorn Configuration Task for NetBox
+# =============================================================================
+
+- name: Create Gunicorn configuration file
+  ansible.builtin.template:
+    src: gunicorn.py.j2
+    dest: "{{ netbox_install_dir }}/gunicorn.py"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: '0644'
+  notify: restart netbox services
+  tags: ['configuration', 'gunicorn']

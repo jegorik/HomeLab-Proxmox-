@@ -50,3 +50,10 @@ terraform.rc
 # Environment files with sensitive data (SSH keys, passwords)
 scripts/**/.env
 !scripts/**/.env.example
+
+# Ansible inventory with real IP addresses and hostnames
+inventory.yml
+
+# Ansible playbooks with sensitive Vault URLs and paths
+scripts/ansible/playbooks/**/site.yml
+!scripts/ansible/playbooks/**/site.yml.example

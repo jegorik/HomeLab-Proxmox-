@@ -1,0 +1,25 @@
+server {
+    listen {{ nginx_configured_port }};
+    listen [::]:{{ nginx_configured_port }};
+
+    server_name _;
+
+    client_max_body_size 25m;
+
+    location /static/ {
+        alias {{ netbox_install_dir }}/netbox/static/;
+    }
+
+    location /media/ {
+        alias {{ netbox_install_dir }}/netbox/media/;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        add_header P3P 'CP="ALL DSP COR PSAa PSDa OUR NOR ONL UNI COM NAV"';
+    }
+}

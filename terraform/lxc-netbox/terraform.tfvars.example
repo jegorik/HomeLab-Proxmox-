@@ -1,0 +1,95 @@
+
+# =============================================================================
+# Terraform Variables Configuration File
+# =============================================================================
+# This file contains non-sensitive variable values for your OpenTofu configuration.
+# Sensitive values (like vault_password) should be set via environment variables.
+#
+# Usage:
+#   export TF_VAR_vault_password="your-vault-password"
+#   tofu plan
+#   tofu apply
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Vault Configuration
+# -----------------------------------------------------------------------------
+
+# Vault server address
+# Change this to your Vault server URL
+vault_address = "your-vault-server:8200"
+
+# Vault username (userpass authentication)
+vault_username = "your-username"
+
+# Skip TLS verification (set to false in production with valid certificates)
+vault_skip_tls_verify = true
+
+# IMPORTANT: vault_password is NOT set here for security reasons
+# Set it via environment variable instead:
+#   export TF_VAR_vault_password="your-password-here"
+
+proxmox_api_token_vault_path = "your-vault-path-for-proxmox-api-token"
+proxmox_endpoint_vault_path  = "your-vault-path-for-proxmox-endpoint"
+proxmox_node_name_vault_path = "your-vault-path-for-proxmox-node-name"
+proxmox_user_name_vault_path = "your-vault-path-for-proxmox-username"
+s3_bucket_name_vault_path    = "your-vault-path-for-s3-bucket-name"
+root_ssh_public_key_path     = "your-vault-path-for-root-ssh-public-key"
+root_ssh_private_key_path    = "your-vault-path-for-root-ssh-private-key"
+ansible_ssh_public_key_path  = "your-vault-path-for-ansible-ssh-public-key"
+ephemeral_vault_mount_path   = "your-ephemeral-vault-mount-path"
+
+# -----------------------------------------------------------------------------
+# AWS Configuration
+# -----------------------------------------------------------------------------
+
+# AWS region for resource deployment
+# Note: S3 backend region is configured in s3.backend.config
+aws_region = "your-aws-region"
+
+# -----------------------------------------------------------------------------
+# Proxmox Configuration
+# -----------------------------------------------------------------------------
+
+# Skip TLS verification for Proxmox (set to false in production)
+connection_insecure = true
+
+# Enable SSH agent for Proxmox operations
+ssh_agent_enabled = true
+
+# -----------------------------------------------------------------------------
+# Netbox LXC container Resource Configuration
+# -----------------------------------------------------------------------------
+
+lxc_id                     = "105"
+lxc_hostname               = "netbox"
+lxc_description            = "Netbox platform for network and infrastructure management - Managed by OpenTofu"
+lxc_ip_address             = "192.168.1.10/24"
+lxc_gateway                = "192.168.1.1"
+lxc_dns_servers            = "8.8.8.8 1.1.1.1"
+lxc_start_on_boot          = true
+lxc_unprivileged           = true
+lxc_protection             = false
+lxc_disk_storage           = "local-lvm"
+lxc_disk_size              = 12
+lxc_cpu_cores              = 1
+lxc_memory                 = 2048
+lxc_swap                   = 1024
+lxc_startup_order          = 1
+lxc_up_delay               = 20
+lxc_down_delay             = 20
+lxc_tags                   = ["netbox", "infrastructure", "management"]
+lxc_nesting                = true
+lxc_network_interface_name = "eth0"
+lxc_network_bridge         = "vmbr0"
+lxc_os_type                = "debian"
+
+
+
+# -----------------------------------------------------------------------------
+# Encryption Configuration
+# -----------------------------------------------------------------------------
+
+transit_key_name    = "your-transit-key-name"
+transit_engine_path = "transit"
+transit_key_length  = 32

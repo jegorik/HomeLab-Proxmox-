@@ -1,0 +1,105 @@
+# =============================================================================
+# AWS S3 Backend Configuration for OpenTofu State Storage
+# =============================================================================
+# This file configures remote state storage in AWS S3 with state locking (uses S3 native locking).
+# Use this file during initialization to enable remote state backend.
+#
+# Usage:
+#   tofu init -backend-config=s3.backend.config
+#
+# Prerequisites:
+# 1. AWS S3 bucket created for state storage
+# 2. AWS credentials configured in ~/.aws/credentials
+#
+# Required IAM Permissions:
+# - s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject
+#
+# Security Best Practices:
+# - Enable S3 bucket versioning for state history
+# - Enable S3 bucket encryption at rest (AES-256 or KMS)
+# - Restrict bucket access with IAM policies
+# - Use VPC endpoint for S3 access (if running from EC2)
+# - Enable CloudTrail logging for S3 bucket access
+# - Consider using state encryption in addition to S3 encryption
+#
+# References:
+# - OpenTofu S3 Backend: https://opentofu.org/docs/language/settings/backends/s3/
+# - AWS S3 Best Practices: https://docs.aws.amazon.com/s3/
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# S3 Backend Configuration
+# -----------------------------------------------------------------------------
+
+# S3 bucket name where state files are stored
+# IMPORTANT: Change this to your own bucket name
+bucket = "homelab-tofu-state-save"
+
+# Object key path within the S3 bucket
+# Format: <project>/<environment>/<component>.tfstate
+# This prevents state file conflicts across multiple deployments
+key = "<path-to-your-state-file>/lxc-netbox/terraform.tfstate"
+
+# AWS region where S3 bucket is located
+# IMPORTANT: This must be hardcoded as variables cannot be used in backend config
+region = "your-aws-region"
+
+# -----------------------------------------------------------------------------
+# AWS Authentication via Vault Dynamic Credentials
+# -----------------------------------------------------------------------------
+# Using Vault AWS secrets engine to generate temporary credentials dynamically.
+# Credentials are passed via environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# This eliminates the need for static credentials stored in ~/.aws/credentials
+#
+# To generate credentials before running 'tofu init':
+#   vault read -format=json aws/proxmox/creds/tofu_state_backup | jq -r '.data'
+#   export AWS_ACCESS_KEY_ID="<access_key_from_vault>"
+#   export AWS_SECRET_ACCESS_KEY="<secret_key_from_vault>"
+#
+# Benefits of dynamic credentials:
+# - Automatic TTL-based expiration (no permanent credentials)
+# - Centralized access control via Vault policies
+# - Audit trail of credential generation in Vault
+# - Automatic revocation when lease expires
+# - No credentials stored on disk
+#
+# Note: If you prefer static credentials, uncomment the lines below:
+# profile = "tofu-backup"
+# shared_credentials_files = ["your-path-to-credentials/.aws/credentials"]
+# shared_config_files = ["your-path-to-config/.aws/config"]
+
+# -----------------------------------------------------------------------------
+# Optional Advanced Configuration
+# -----------------------------------------------------------------------------
+# Uncomment and configure as needed:
+
+# NOTE: Region is now configured above (required parameter)
+# Uncomment and change region value above if your bucket is in a different region
+
+#(Optional) Tags to be applied to the lock object.
+lock_tags = {"lock-owner":"opentofu"}
+
+# S3 enable state locking (prevents concurrent modifications)
+use_lockfile = true
+
+# Enable S3 server-side encryption with AWS KMS
+# encrypt = true
+# kms_key_id = "arn:aws:kms:REGION:ACCOUNT:key/KEY-ID"
+
+# IAM role ARN to assume for S3 access (useful for cross-account access)
+# role_arn = "arn:aws:iam::ACCOUNT:role/TerraformStateRole"
+
+# Workspace key prefix for multi-environment support
+# workspace_key_prefix = "workspaces"
+
+# Skip AWS credentials validation (not recommended for production)
+# skip_credentials_validation = false
+
+# Skip AWS region validation
+# skip_region_validation = false
+
+# Skip requesting S3 bucket location
+# skip_requesting_account_id = false
+
+# Maximum number of times to retry S3 API calls
+# max_retries = 5

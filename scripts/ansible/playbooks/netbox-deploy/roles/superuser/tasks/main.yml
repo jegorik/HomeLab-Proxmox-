@@ -1,0 +1,105 @@
+---
+# =============================================================================
+# NetBox Superuser Creation Role
+# =============================================================================
+# Creates Django admin superuser account with credentials from Vault
+# =============================================================================
+
+- name: Check if superuser credentials exist in Vault
+  ansible.builtin.uri:
+    url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+    status_code: [200, 404]
+    return_content: true
+  register: vault_superuser_check
+  no_log: true
+  tags: ['vault', 'secrets']
+
+- name: Generate and store superuser credentials if not exists
+  block:
+    - name: Set superuser defaults
+      ansible.builtin.set_fact:
+        netbox_superuser_username: "admin"
+        netbox_superuser_email: "admin@localhost"
+        netbox_superuser_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=24') }}"
+      no_log: true
+
+    - name: Get existing Vault data
+      ansible.builtin.set_fact:
+        existing_vault_data: "{{ vault_superuser_check.json.data.data | default({}) }}"
+      when: vault_superuser_check.status == 200
+
+    - name: Merge superuser credentials with existing data
+      ansible.builtin.set_fact:
+        vault_data_to_save: "{{ existing_vault_data | default({}) | combine({'superuser_username': netbox_superuser_username, 'superuser_password': netbox_superuser_password, 'superuser_email': netbox_superuser_email}) }}"
+      no_log: true
+
+    - name: Store superuser credentials in Vault
+      ansible.builtin.uri:
+        url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+        body_format: json
+        body:
+          data: "{{ vault_data_to_save }}"
+        status_code: [200, 204]
+      no_log: true
+  when: vault_superuser_check.status == 404 or vault_superuser_check.json.data.data.superuser_username is not defined
+  tags: ['vault', 'secrets']
+
+- name: Retrieve superuser credentials from Vault (if not generated)
+  ansible.builtin.set_fact:
+    netbox_superuser_username: "{{ vault_superuser_check.json.data.data.superuser_username }}"
+    netbox_superuser_password: "{{ vault_superuser_check.json.data.data.superuser_password }}"
+    netbox_superuser_email: "{{ vault_superuser_check.json.data.data.superuser_email }}"
+  when: vault_superuser_check.status == 200 and vault_superuser_check.json.data.data.superuser_username is defined
+  no_log: true
+  tags: ['vault', 'secrets']
+
+- name: Check if superuser already exists
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_dir }}/venv/bin/python {{ netbox_install_dir }}/netbox/manage.py shell -c \"from django.contrib.auth.models import User; exit(0 if User.objects.filter(username='{{ netbox_superuser_username }}').exists() else 1)\""
+  become: true
+  become_user: "{{ netbox_user }}"
+  environment:
+    PYTHONPATH: "{{ netbox_install_dir }}/netbox"
+  register: superuser_exists
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: ['verification', 'superuser']
+
+- name: Create Django superuser
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_dir }}/venv/bin/python {{ netbox_install_dir }}/netbox/manage.py createsuperuser --noinput"
+  become: true
+  become_user: "{{ netbox_user }}"
+  environment:
+    PYTHONPATH: "{{ netbox_install_dir }}/netbox"
+    DJANGO_SUPERUSER_USERNAME: "{{ netbox_superuser_username }}"
+    DJANGO_SUPERUSER_PASSWORD: "{{ netbox_superuser_password }}"
+    DJANGO_SUPERUSER_EMAIL: "{{ netbox_superuser_email }}"
+  when: superuser_exists.rc != 0
+  failed_when: 
+    - superuser_create.rc != 0
+    - "'already taken' not in superuser_create.stderr"
+  register: superuser_create
+  no_log: false
+  tags: ['superuser']
+
+- name: Display superuser information
+  ansible.builtin.debug:
+    msg:
+      - "================================================"
+      - "NetBox Superuser Account Created"
+      - "================================================"
+      - "Username: {{ netbox_superuser_username }}"
+      - "Email: {{ netbox_superuser_email }}"
+      - "Password: Stored securely in Vault"
+      - ""
+      - "Retrieve password with:"
+      - "vault kv get {{ vault_kv_cli_path }}"
+  tags: ['always']

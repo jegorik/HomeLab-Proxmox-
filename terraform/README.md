@@ -12,6 +12,7 @@ terraform/
 ├── ubuntu-server/       # Ubuntu Server VM with cloud-init
 ├── lxc-grafana/         # Grafana LXC container
 ├── lxc-vault/           # HashiCorp Vault LXC container for secrets management
+├── lxc-netbox/          # NetBox DCIM/IPAM LXC container
 ├── fedora_core/         # Fedora CoreOS VM with Ignition
 └── opensuseLeap/        # OpenSUSE Leap 15.6 cloud-image workstation with GPU passthrough
 ```
@@ -100,6 +101,46 @@ scp root@<vault-ip>:/root/vault-keys.txt .
 # Store keys in password manager
 ssh root@<vault-ip> 'shred -u /root/vault-keys.txt'
 shred -u vault-keys.txt
+```
+
+### lxc-netbox
+
+**Purpose**: Deploy NetBox DCIM/IPAM platform in an LXC container.
+
+**Features**:
+
+- Unprivileged container for security
+- Automated Ansible user provisioning
+- Vault integration for secrets management (SSH keys, Proxmox credentials)
+- State file encryption using Vault Transit engine
+- S3 remote state backend with locking
+- Generates Ansible inventory automatically
+- Integrated with netbox-deploy playbook for application deployment
+- Credential caching to prevent AWS credential duplication
+
+**Quick Start**:
+
+```bash
+cd lxc-netbox
+cp terraform.tfvars.example terraform.tfvars
+cp s3.backend.config.template s3.backend.config
+cp vault_init.sh.example vault_init.sh
+nano terraform.tfvars  # Configure Vault, Proxmox, network
+
+# Initialize with S3 backend and Vault authentication
+source ./vault_init.sh  # Handles Vault login and AWS credentials
+
+# Deploy infrastructure
+tofu plan
+tofu apply
+
+# Get Ansible inventory entry
+tofu output ansible_inventory_entry
+
+# Deploy NetBox application (see scripts/ansible/playbooks/netbox-deploy/)
+cd ../../scripts/ansible
+# Add inventory entry to inventory.yml
+ansible-playbook -i inventory.yml playbooks/netbox-deploy/site.yml
 ```
 
 ### fedora_core

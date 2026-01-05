@@ -39,6 +39,13 @@ examples and find concise guidance for each component.
     - State file encryption with PBKDF2-AES-GCM
     - S3 remote state backend with locking support
     - Systemd service integration and optional Ansible user
+  - [`lxc-netbox/`](terraform/lxc-netbox/) — NetBox LXC container for DCIM/IPAM platform.
+    - Unprivileged container with Debian 13
+    - Automated infrastructure provisioning with Vault integration
+    - State file encryption with Vault Transit engine
+    - S3 remote state backend with locking support
+    - Ansible user auto-provisioning for automated deployment
+    - Integrated with netbox-deploy Ansible playbook
   - [`fedora_core/`](terraform/fedora_core/) — Fedora CoreOS VM for container workloads.
     - Immutable OS designed for containerized applications (Podman/Docker)
     - **Single-stage Cloud-Init deployment** with native Ignition support
@@ -61,6 +68,10 @@ examples and find concise guidance for each component.
 
 - [`scripts/`](scripts/) — Shell scripts and Ansible playbooks for host provisioning and automation.
   - [`ansible/`](scripts/ansible/) — Ansible configurations and playbooks.
+    - [`playbooks/netbox-deploy/`](scripts/ansible/playbooks/netbox-deploy/) — NetBox DCIM/IPAM deployment
+      - Deploys NetBox v4.4.9 with PostgreSQL 17 and Redis
+      - Full automation with Vault secrets integration
+      - Systemd services, Nginx reverse proxy, superuser creation
     - [`playbooks/maintenance/`](scripts/ansible/playbooks/maintenance/) — System maintenance
       - `update_packages.yml` — Multi-distro package updates (Debian, RHEL, SUSE)
     - [`playbooks/debug/`](scripts/ansible/playbooks/debug/) — Testing & debugging

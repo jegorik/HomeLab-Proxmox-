@@ -1,0 +1,25 @@
+[Unit]
+Description=NetBox WSGI Service
+Documentation=https://docs.netbox.dev/
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ netbox_user }}
+Group={{ netbox_group }}
+PIDFile=/var/tmp/netbox.pid
+WorkingDirectory={{ netbox_install_dir }}/netbox
+
+ExecStart={{ netbox_install_dir }}/venv/bin/gunicorn \
+    --pid /var/tmp/netbox.pid \
+    --pythonpath {{ netbox_install_dir }}/netbox \
+    --config {{ netbox_install_dir }}/gunicorn.py \
+    netbox.wsgi
+
+Restart=on-failure
+RestartSec=30
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
