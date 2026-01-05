@@ -46,7 +46,8 @@ ansible-playbook playbooks/debug/test_connection.yml
 ## 📋 Available Playbooks
 
 | Category | Playbook | Description |
-|----------|----------|-------------|
+| ---------- | ---------- | ------------- |
+| **deployment** | `netbox-deploy/site.yml` | Deploy NetBox DCIM/IPAM platform |
 | **maintenance** | `update_packages.yml` | Update packages on all systems |
 | **debug** | `test_connection.yml` | Test SSH connectivity to hosts |
 
@@ -90,7 +91,7 @@ All playbooks are designed for Semaphore UI:
 ### Example Task Templates
 
 | Task Name | Playbook Path |
-|-----------|--------------|
+| ----------- | -------------- |
 | Update All Systems | `scripts/ansible/playbooks/maintenance/update_packages.yml` |
 | Test Connectivity | `scripts/ansible/playbooks/debug/test_connection.yml` |
 

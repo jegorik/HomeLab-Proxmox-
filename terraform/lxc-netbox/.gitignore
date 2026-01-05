@@ -1,0 +1,102 @@
+# =============================================================================
+# .gitignore for Terraform/OpenTofu Vault Project
+# =============================================================================
+
+# Terraform/OpenTofu State Files
+# These contain sensitive data and should never be committed
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+*.backend.config
+
+# Terraform/OpenTofu Variable Files
+# Contains sensitive configuration like API tokens and passwords
+terraform.tfvars
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Terraform/OpenTofu Lock Files
+# Lock files can be committed, but some teams prefer to ignore them
+# Uncomment if you want to ignore:
+# .terraform.lock.hcl
+
+# Terraform/OpenTofu Directories
+.terraform/
+.terraform.lock.hcl
+
+# Crash Log Files
+crash.log
+crash.*.log
+
+# Sensitive Files
+# Any file containing passwords, passphrases, or keys
+*passphrase*
+*password*
+*secret*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+vault-keys.txt
+*.backup
+
+# Editor and IDE Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Backup Files
+*.bak
+*.orig
+*.tmp
+
+# Local Override Files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI Configuration Files
+.terraformrc
+terraform.rc
+
+# Output Files
+outputs.json
+terraform-output.txt
+
+# Generated Files
+generated/
+output/
+
+# SSH Keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Archives
+*.tar
+*.tar.gz
+*.zip
+*.7z
+
+# Logs
+*.log
+
+# -----------------------------------------------------------------------------
+# Scripts
+# -----------------------------------------------------------------------------
+# Vault initialization script with sensitive defaults
+vault_init.sh
+!vault_init.sh.example
+
+# Environment files with sensitive data (SSH keys, passwords)
+scripts/**/.env
+!scripts/**/.env.example
+

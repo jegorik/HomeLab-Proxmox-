@@ -1,0 +1,199 @@
+---
+# =============================================================================
+# NetBox Application Installation and Configuration Role
+# =============================================================================
+# Clones NetBox from GitHub, sets up Python virtual environment,
+# generates SECRET_KEY, configures with Vault credentials
+# =============================================================================
+
+- name: Install NetBox dependencies
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - build-essential
+      - libxml2-dev
+      - libxslt1-dev
+      - libffi-dev
+      - libpq-dev
+      - libssl-dev
+      - zlib1g-dev
+      - git
+    state: present
+    update_cache: true
+  tags: ['install', 'dependencies']
+
+- name: Create NetBox system user
+  ansible.builtin.user:
+    name: "{{ netbox_user }}"
+    system: true
+    home: "{{ netbox_install_dir }}"
+    shell: /bin/bash
+    create_home: false
+  tags: ['user']
+
+- name: Ensure parent directory exists
+  ansible.builtin.file:
+    path: /opt
+    state: directory
+    mode: '0755'
+  tags: ['install', 'directory']
+
+- name: Check if NetBox is already cloned
+  ansible.builtin.stat:
+    path: "{{ netbox_install_dir }}/.git"
+  register: netbox_git_check
+  tags: ['install', 'git']
+
+- name: Clone NetBox repository from GitHub
+  ansible.builtin.git:
+    repo: https://github.com/netbox-community/netbox.git
+    dest: "{{ netbox_install_dir }}"
+    version: "{{ netbox_version }}"
+    force: false
+    update: true
+  become: true
+  become_user: root
+  when: not netbox_git_check.stat.exists
+  tags: ['install', 'git']
+
+- name: Set ownership of NetBox directory
+  ansible.builtin.file:
+    path: "{{ netbox_install_dir }}"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    recurse: true
+  tags: ['install', 'permissions']
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv "{{ netbox_install_dir }}/venv"
+    creates: "{{ netbox_install_dir }}/venv/bin/activate"
+  become: true
+  become_user: "{{ netbox_user }}"
+  tags: ['install', 'venv']
+
+- name: Upgrade pip in virtual environment
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ netbox_install_dir }}/venv"
+  become: true
+  become_user: "{{ netbox_user }}"
+  tags: ['install', 'venv']
+
+- name: Install NetBox Python requirements
+  ansible.builtin.pip:
+    requirements: "{{ netbox_install_dir }}/requirements.txt"
+    virtualenv: "{{ netbox_install_dir }}/venv"
+  become: true
+  become_user: "{{ netbox_user }}"
+  tags: ['install', 'dependencies']
+
+- name: Check if SECRET_KEY exists in Vault
+  ansible.builtin.uri:
+    url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+    status_code: [200, 404]
+    return_content: true
+  register: vault_secret_key_check
+  no_log: true
+  tags: ['vault', 'secrets']
+
+- name: Generate and store SECRET_KEY if not exists
+  block:
+    - name: Generate Django SECRET_KEY
+      ansible.builtin.set_fact:
+        netbox_secret_key: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,punctuation length=50') }}"
+      no_log: true
+
+    - name: Get existing Vault data
+      ansible.builtin.set_fact:
+        existing_vault_data: "{{ vault_secret_key_check.json.data.data | default({}) }}"
+      when: vault_secret_key_check.status == 200
+
+    - name: Merge SECRET_KEY with existing data
+      ansible.builtin.set_fact:
+        vault_data_to_save: "{{ existing_vault_data | default({}) | combine({'secret_key': netbox_secret_key}) }}"
+      no_log: true
+
+    - name: Store SECRET_KEY in Vault
+      ansible.builtin.uri:
+        url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+        body_format: json
+        body:
+          data: "{{ vault_data_to_save }}"
+        status_code: [200, 204]
+      no_log: true
+  when: vault_secret_key_check.status == 404 or vault_secret_key_check.json.data.data.secret_key is not defined
+  tags: ['vault', 'secrets']
+
+- name: Retrieve all secrets from Vault
+  ansible.builtin.uri:
+    url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+    return_content: true
+    status_code: [200]
+  register: vault_secrets
+  no_log: true
+  tags: ['vault', 'secrets']
+
+- name: Set SECRET_KEY and database password from Vault
+  ansible.builtin.set_fact:
+    netbox_secret_key: "{{ vault_secrets.json.data.data.secret_key }}"
+    netbox_db_password: "{{ vault_secrets.json.data.data.db_password | default(netbox_db_password) }}"
+  no_log: false
+  tags: ['vault', 'secrets']
+
+- name: Create NetBox configuration from template
+  ansible.builtin.template:
+    src: configuration.py.j2
+    dest: "{{ netbox_install_dir }}/netbox/netbox/configuration.py"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: '0640'
+  notify: restart netbox services
+  tags: ['configuration']
+
+- name: Run NetBox database migrations
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_dir }}/venv/bin/python {{ netbox_install_dir }}/netbox/manage.py migrate"
+  become: true
+  become_user: "{{ netbox_user }}"
+  environment:
+    PYTHONPATH: "{{ netbox_install_dir }}/netbox"
+  register: migrate_result
+  changed_when: "'No migrations to apply' not in migrate_result.stdout"
+  tags: ['database', 'migration']
+
+- name: Collect NetBox static files
+  ansible.builtin.command:
+    cmd: "{{ netbox_install_dir }}/venv/bin/python {{ netbox_install_dir }}/netbox/manage.py collectstatic --no-input"
+  become: true
+  become_user: "{{ netbox_user }}"
+  environment:
+    PYTHONPATH: "{{ netbox_install_dir }}/netbox"
+  register: collectstatic_result
+  changed_when: "'0 static files copied' not in collectstatic_result.stdout"
+  tags: ['static']
+
+- name: Set ownership of NetBox directory
+  ansible.builtin.file:
+    path: "{{ netbox_install_dir }}"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    recurse: true
+  tags: ['permissions']
+
+- name: Configure Gunicorn
+  ansible.builtin.include_tasks: gunicorn.yml
+  tags: ['gunicorn', 'configuration']

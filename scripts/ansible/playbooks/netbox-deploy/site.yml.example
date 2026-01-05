@@ -1,0 +1,101 @@
+---
+# =============================================================================
+# NetBox Deployment Playbook - Example Template
+# =============================================================================
+# This playbook deploys NetBox DCIM/IPAM platform on Debian 13 LXC container
+# 
+# SETUP INSTRUCTIONS:
+#   1. Copy this file to site.yml:
+#      cp site.yml.example site.yml
+#   
+#   2. Update the following variables in site.yml:
+#      - vault_addr: Your HashiCorp Vault server URL
+#      - vault_kv_path: Your Vault KV secrets path (REST API format)
+#      - vault_kv_cli_path: Your Vault KV secrets path (CLI format)
+# 
+# Prerequisites:
+#   - LXC container created by Terraform (lxc-netbox project)
+#   - Ansible user configured with SSH access
+#   - HashiCorp Vault accessible for secrets retrieval
+#   - VAULT_TOKEN environment variable set
+#
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/netbox-deploy/site.yml
+#
+# What this does:
+#   1. Install and configure PostgreSQL 17 database
+#   2. Install and configure Redis cache server
+#   3. Deploy NetBox 4.4.9 from GitHub with Python virtual environment
+#   4. Generate SECRET_KEY and store in Vault
+#   5. Configure NetBox with Vault credentials
+#   6. Set up systemd services (netbox, netbox-rq)
+#   7. Configure Nginx reverse proxy
+#   8. Create Django superuser account
+# =============================================================================
+
+- name: Deploy NetBox DCIM/IPAM Platform
+  hosts: netbox
+  become: true
+  gather_facts: true
+  
+  vars:
+    # Vault configuration - UPDATE THESE VALUES FOR YOUR ENVIRONMENT
+    vault_addr: "{{ lookup('env', 'VAULT_ADDR') | default('https://vault.example.com', true) }}"
+    vault_kv_path: "secrets/YOUR_PATH/data/netbox"   # REST API path (includes /data)
+    vault_kv_cli_path: "secrets/YOUR_PATH/netbox"    # CLI path (vault kv commands auto-add /data)
+    
+    # NetBox configuration
+    netbox_version: "v4.4.9"
+    netbox_install_dir: "/opt/netbox"
+    netbox_user: "netbox"
+    netbox_group: "netbox"
+    
+    # PostgreSQL configuration
+    postgres_version: "17"
+    netbox_db_name: "netbox"
+    netbox_db_user: "netbox"
+    
+    # Nginx configuration
+    nginx_primary_port: 80
+    nginx_fallback_port: 8300
+    
+  roles:
+    - role: postgresql
+      tags: ['postgresql', 'database']
+      
+    - role: redis
+      tags: ['redis', 'cache']
+      
+    - role: netbox
+      tags: ['netbox', 'application']
+      
+    - role: systemd
+      tags: ['systemd', 'services']
+      
+    - role: nginx
+      tags: ['nginx', 'webserver']
+      
+    - role: superuser
+      tags: ['superuser', 'admin']
+  
+  post_tasks:
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "================================================"
+          - "NetBox Deployment Completed Successfully!"
+          - "================================================"
+          - "NetBox Version: {{ netbox_version }}"
+          - "Web UI: http://{{ ansible_default_ipv4.address }}:{{ nginx_configured_port | default(nginx_primary_port) }}"
+          - "Admin Username: {{ netbox_superuser_username | default('admin') }}"
+          - "Admin Email: {{ netbox_superuser_email | default('admin@localhost') }}"
+          - ""
+          - "Next Steps:"
+          - "1. Access NetBox UI in your browser"
+          - "2. Login with admin credentials from Vault:"
+          - "   vault kv get {{ vault_kv_cli_path }}"
+          - "3. Configure NetBox settings via Admin panel"
+          - "4. Import initial data (sites, racks, devices, etc.)"
+          - ""
+          - "Documentation: https://docs.netbox.dev/"
+      tags: ['always']

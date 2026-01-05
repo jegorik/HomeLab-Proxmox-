@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Vault-Integrated OpenTofu Initialization Script
+# =============================================================================
+# This script automates the entire initialization workflow:
+# 1. Authenticates to Vault (if not already logged in)
+# 2. Generates dynamic AWS credentials for S3 backend
+# 3. Exports all required environment variables
+# 4. Initializes OpenTofu with encrypted S3 backend
+#
+# Usage:
+#   ./vault-init.sh
+#
+# What this solves:
+# - Eliminates manual credential export steps
+# - Ensures all environment variables are set correctly
+# - Provides clear feedback at each step
+# - Handles errors gracefully
+# =============================================================================
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+export VAULT_ADDR="${VAULT_ADDR:-https://your-vault-server:8200}"
+export VAULT_USERNAME="${VAULT_USERNAME:-your-username}"
+export AWS_ROLE="your-aws-role"
+export BACKEND_CONFIG="s3.backend.config"
+
+echo -e "${BLUE}==============================================================================${NC}"
+echo -e "${BLUE}Vault-Integrated OpenTofu Initialization${NC}"
+echo -e "${BLUE}==============================================================================${NC}"
+echo ""
+
+# Step 1: Check Vault connectivity
+echo -e "${YELLOW}[1/5]${NC} Checking Vault connectivity..."
+if ! vault status &>/dev/null; then
+    echo -e "${RED}✗ Cannot connect to Vault at ${VAULT_ADDR}${NC}"
+    echo "Please check:"
+    echo "  - Vault server is running"
+    echo "  - VAULT_ADDR is correct: export VAULT_ADDR=\"${VAULT_ADDR}\""
+    echo "  - Network connectivity"
+    exit 1
+fi
+echo -e "${GREEN}✓ Connected to Vault at ${VAULT_ADDR}${NC}"
+echo ""
+
+# Step 2: Check/establish Vault authentication
+echo -e "${YELLOW}[2/5]${NC} Checking Vault authentication..."
+if ! vault token lookup &>/dev/null; then
+    echo -e "${YELLOW}Not authenticated. Logging in as ${VAULT_USERNAME}...${NC}"
+    echo -n "Enter Vault password for ${VAULT_USERNAME}: "
+    read -s VAULT_PASSWORD
+    echo ""
+
+    VAULT_TOKEN=$(vault login -method=userpass \
+        username="${VAULT_USERNAME}" \
+        password="${VAULT_PASSWORD}" \
+        -token-only 2>&1)
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗ Authentication failed${NC}"
+        exit 1
+    fi
+
+    export VAULT_TOKEN
+    echo -e "${GREEN}✓ Authenticated successfully${NC}"
+else
+    TOKEN_INFO=$(vault token lookup -format=json 2>/dev/null)
+    DISPLAY_NAME=$(echo "$TOKEN_INFO" | jq -r '.data.display_name')
+    TTL=$(echo "$TOKEN_INFO" | jq -r '.data.ttl')
+    echo -e "${GREEN}✓ Already authenticated as ${DISPLAY_NAME} (TTL: ${TTL}s)${NC}"
+
+    # Export token for OpenBao encryption provider
+    export VAULT_TOKEN=$(vault token lookup -format=json | jq -r '.data.id')
+fi
+echo ""
+
+# Step 3: Generate dynamic AWS credentials from Vault
+echo -e "${YELLOW}[3/5]${NC} Generating dynamic AWS credentials..."
+AWS_CREDS=$(vault read -format=json aws/proxmox/creds/${AWS_ROLE} 2>&1)
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}✗ Failed to generate AWS credentials${NC}"
+    echo "Error: $AWS_CREDS"
+    echo ""
+    echo "Please verify:"
+    echo "  - AWS secrets engine is mounted at 'aws/proxmox'"
+    echo "  - Role '${AWS_ROLE}' exists"
+    echo "  - Your Vault policy allows: vault read aws/proxmox/creds/${AWS_ROLE}"
+    exit 1
+fi
+
+export AWS_ACCESS_KEY_ID=$(echo "$AWS_CREDS" | jq -r '.data.access_key')
+export AWS_SECRET_ACCESS_KEY=$(echo "$AWS_CREDS" | jq -r '.data.secret_key')
+LEASE_DURATION=$(echo "$AWS_CREDS" | jq -r '.lease_duration')
+LEASE_ID=$(echo "$AWS_CREDS" | jq -r '.lease_id')
+
+echo -e "${GREEN}✓ AWS credentials generated${NC}"
+echo "  Access Key: ${AWS_ACCESS_KEY_ID:0:10}...${AWS_ACCESS_KEY_ID: -4}"
+echo "  Lease Duration: ${LEASE_DURATION}s ($((LEASE_DURATION / 3600)) hours)"
+echo "  Lease ID: ${LEASE_ID}"
+echo ""
+
+# Step 4: Set Vault password for provider authentication
+echo -e "${YELLOW}[4/5]${NC} Setting up OpenTofu provider authentication..."
+if [ -z "${TF_VAR_vault_password:-}" ]; then
+    echo -n "Enter Vault password for OpenTofu provider (${VAULT_USERNAME}): "
+    read -s VAULT_PASSWORD
+    echo ""
+    export TF_VAR_vault_password="${VAULT_PASSWORD}"
+    echo -e "${GREEN}✓ Provider password exported${NC}"
+else
+    echo -e "${GREEN}✓ Provider password already set${NC}"
+fi
+echo ""
+
+# Step 5: Initialize OpenTofu
+echo -e "${YELLOW}[5/5]${NC} Initializing OpenTofu with encrypted S3 backend..."
+echo ""
+
+if [ ! -f "${BACKEND_CONFIG}" ]; then
+    echo -e "${RED}✗ Backend config file not found: ${BACKEND_CONFIG}${NC}"
+    exit 1
+fi
+
+# Show what we're about to do
+echo -e "${BLUE}Running: tofu init -backend-config=${BACKEND_CONFIG}${NC}"
+echo ""
+
+# Run tofu init with proper environment
+tofu init -backend-config="${BACKEND_CONFIG}"
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo -e "${GREEN}==============================================================================${NC}"
+    echo -e "${GREEN}✓ Initialization Complete!${NC}"
+    echo -e "${GREEN}==============================================================================${NC}"
+    echo ""
+    echo "Environment variables set:"
+    echo "  ✓ VAULT_TOKEN (for state encryption)"
+    echo "  ✓ VAULT_ADDR=${VAULT_ADDR}"
+    echo "  ✓ AWS_ACCESS_KEY_ID (expires in $((LEASE_DURATION / 3600))h)"
+    echo "  ✓ AWS_SECRET_ACCESS_KEY"
+    echo "  ✓ TF_VAR_vault_password (for provider)"
+    echo ""
+    echo "Next steps:"
+    echo "  1. Run: tofu validate"
+    echo "  2. Run: tofu plan"
+    echo "  3. Run: tofu apply"
+    echo ""
+    echo "Note: AWS credentials will expire in $((LEASE_DURATION / 3600)) hours"
+    echo "      Run this script again to refresh credentials"
+else
+    echo ""
+    echo -e "${RED}✗ Initialization failed${NC}"
+    echo "Check the error messages above for details"
+    exit 1
+fi

@@ -1,0 +1,7 @@
+---
+# Nginx role handlers
+
+- name: restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted

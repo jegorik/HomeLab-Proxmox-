@@ -59,7 +59,8 @@ ssh root@newhost "bash /tmp/ansible_user_setup.sh /tmp/.env"
 ### Ansible Playbooks
 
 | Category | Playbook | Description |
-|----------|----------|-------------|
+| ---------- | ---------- | ------------- |
+| deployment | `netbox-deploy/site.yml` | Deploy NetBox DCIM platform |
 | maintenance | `update_packages.yml` | Update packages (multi-distro) |
 | debug | `test_connection.yml` | Test SSH connectivity |
 

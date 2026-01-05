@@ -1,0 +1,62 @@
+---
+# =============================================================================
+# Redis Installation and Configuration Role
+# =============================================================================
+# Installs and configures Redis cache server for NetBox
+# =============================================================================
+
+- name: Install Redis server
+  ansible.builtin.apt:
+    name:
+      - redis-server
+      - python3-redis  # Required for Ansible Redis modules
+    state: present
+    update_cache: true
+  tags: ['install']
+
+- name: Configure Redis to bind to localhost only
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^bind\s+'
+    line: 'bind 127.0.0.1 ::1'
+    backup: true
+  notify: restart redis
+  tags: ['configuration', 'security']
+
+- name: Configure Redis to use supervised systemd
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^supervised\s+'
+    line: 'supervised systemd'
+  notify: restart redis
+  tags: ['configuration']
+
+- name: Set Redis maxmemory policy for caching
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^maxmemory-policy\s+'
+    line: 'maxmemory-policy allkeys-lru'
+  notify: restart redis
+  tags: ['configuration', 'performance']
+
+- name: Set Redis maxmemory limit (256MB)
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^maxmemory\s+'
+    line: 'maxmemory 256mb'
+  notify: restart redis
+  tags: ['configuration', 'performance']
+
+- name: Ensure Redis service is running and enabled
+  ansible.builtin.systemd:
+    name: redis-server
+    state: started
+    enabled: true
+  tags: ['service']
+
+- name: Verify Redis is responding
+  ansible.builtin.command: redis-cli ping
+  register: redis_ping
+  changed_when: false
+  failed_when: redis_ping.stdout != "PONG"
+  tags: ['verification']

@@ -1,0 +1,61 @@
+---
+# =============================================================================
+# Systemd Services Configuration Role
+# =============================================================================
+# Creates and configures systemd service units for NetBox and NetBox-RQ
+# =============================================================================
+
+- name: Create NetBox systemd service unit
+  ansible.builtin.template:
+    src: netbox.service.j2
+    dest: /etc/systemd/system/netbox.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+  tags: ['service', 'netbox']
+
+- name: Create NetBox-RQ systemd service unit
+  ansible.builtin.template:
+    src: netbox-rq.service.j2
+    dest: /etc/systemd/system/netbox-rq.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload systemd
+  tags: ['service', 'netbox-rq']
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: ['service']
+
+- name: Enable and start NetBox service
+  ansible.builtin.systemd:
+    name: netbox
+    enabled: true
+    state: started
+  tags: ['service', 'netbox']
+
+- name: Enable and start NetBox-RQ service
+  ansible.builtin.systemd:
+    name: netbox-rq
+    enabled: true
+    state: started
+  tags: ['service', 'netbox-rq']
+
+- name: Verify NetBox service is running
+  ansible.builtin.systemd:
+    name: netbox
+    state: started
+  register: netbox_service_status
+  failed_when: netbox_service_status.status.ActiveState != "active"
+  tags: ['verification']
+
+- name: Verify NetBox-RQ service is running
+  ansible.builtin.systemd:
+    name: netbox-rq
+    state: started
+  register: netbox_rq_service_status
+  failed_when: netbox_rq_service_status.status.ActiveState != "active"
+  tags: ['verification']
