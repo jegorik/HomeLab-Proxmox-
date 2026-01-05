@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Gunicorn Configuration File Template for NetBox
+# Gunicorn Configuration Task for NetBox
 # =============================================================================
 
 - name: Create Gunicorn configuration file
