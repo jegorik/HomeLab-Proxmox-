@@ -32,7 +32,7 @@
     return_content: true
     status_code: [200, 404]
   register: vault_check
-  no_log: false
+  no_log: true
   tags: ['vault', 'secrets']
 
 - name: Retrieve NetBox database password from Vault
