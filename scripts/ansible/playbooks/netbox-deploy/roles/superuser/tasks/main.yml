@@ -78,7 +78,7 @@
       ansible.builtin.debug:
         msg: "WARNING: Failed to save superuser credentials to Vault, but continuing with generated credentials"
   when:
-    - vault_superuser_check.status == 404 or (vault_superuser_check.status == 200 and vault_superuser_check.json.data.data.superuser_username is not defined)
+    - vault_superuser_check.status == 404 or (vault_superuser_check.status == 200 and vault_superuser_check.json is defined and vault_superuser_check.json.data is defined and vault_superuser_check.json.data.data is defined and vault_superuser_check.json.data.data.superuser_username is not defined)
   tags: ['vault', 'secrets']
 
 - name: Check if superuser already exists
