@@ -98,7 +98,14 @@
       ansible.builtin.debug:
         msg: "WARNING: Failed to save database credentials to Vault, but continuing with generated password"
   when:
-    - vault_check.status == 404 or (vault_check.status == 200 and vault_check.json.data.data.db_password is not defined)
+    - vault_check.status == 404
+    - vault_check.status == 200 and (
+        vault_check.json is not defined or
+        vault_check.json.data is not defined or
+        vault_check.json.data.data is not defined or
+        vault_check.json.data.data | type_debug != 'dict' or
+        vault_check.json.data.data.db_password is not defined
+      )
   tags: ['vault', 'secrets']
 
 - name: Create NetBox database user
