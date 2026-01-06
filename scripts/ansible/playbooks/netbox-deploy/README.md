@@ -27,10 +27,17 @@ This playbook deploys **NetBox v4.4.9** with the following components:
 - HashiCorp Vault accessible and unsealed
 - `VAULT_ADDR` environment variable set
 - `VAULT_TOKEN` environment variable set with valid token
-- Vault paths:
-  - `secret/data/netbox/db_password` - PostgreSQL password (auto-generated)
-  - `secret/data/netbox/secret_key` - Django SECRET_KEY (auto-generated)
-  - `secret/data/netbox/superuser` - Admin credentials (auto-generated)
+- All secrets are auto-generated and stored in Vault at configured path
+- Stored secrets include:
+  - `db_password` - PostgreSQL database password
+  - `db_user` - PostgreSQL database username
+  - `db_name` - PostgreSQL database name
+  - `db_host` - PostgreSQL database host
+  - `db_port` - PostgreSQL database port
+  - `secret_key` - Django SECRET_KEY (50 characters)
+  - `superuser_username` - NetBox admin username
+  - `superuser_password` - NetBox admin password (24 characters)
+  - `superuser_email` - NetBox admin email
 
 ### Ansible Collections
 
@@ -157,21 +164,43 @@ Creates Django admin account:
 
 Web UI: `http://<container-ip>` (port 80 or 8300)
 
-### Retrieve Admin Credentials
+### Retrieve Credentials from Vault
+
+Get all NetBox credentials:
 
 ```bash
-vault kv get secret/netbox/superuser
+vault kv get secret/netbox
+# Or use the path configured in your playbook:
+vault kv get secrets/proxmox/netbox
 ```
 
-Output:
+Output includes:
 
 ```text
 ====== Data ======
-Key         Value
----         -----
-email       admin@localhost
-password    <24-character-password>
-username    admin
+Key                   Value
+---                   -----
+db_host               localhost
+db_name               netbox
+db_password           <32-character-password>
+db_port               5432
+db_user               netbox
+secret_key            <50-character-secret>
+superuser_email       admin@localhost
+superuser_password    <24-character-password>
+superuser_username    admin
+```
+
+### Connect to PostgreSQL Database
+
+Using credentials from Vault:
+
+```bash
+# Get database password
+export PGPASSWORD=$(vault kv get -field=db_password secrets/proxmox/netbox)
+
+# Connect to database
+psql -h localhost -U netbox -d netbox
 ```
 
 ### Initial Configuration

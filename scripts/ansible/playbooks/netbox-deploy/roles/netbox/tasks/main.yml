@@ -104,21 +104,45 @@
   no_log: true
   tags: ['vault', 'secrets']
 
-- name: Generate and store SECRET_KEY if not exists
-  block:
-    - name: Generate Django SECRET_KEY
-      ansible.builtin.set_fact:
-        netbox_secret_key: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,punctuation length=50') }}"
-      no_log: true
+- name: Retrieve SECRET_KEY from Vault if it exists
+  ansible.builtin.set_fact:
+    netbox_secret_key: "{{ vault_secret_key_check.json.data.data.secret_key }}"
+  no_log: true
+  when:
+    - vault_secret_key_check.status == 200
+    - vault_secret_key_check.json is defined
+    - vault_secret_key_check.json.data is defined
+    - vault_secret_key_check.json.data.data is defined
+    - vault_secret_key_check.json.data.data.secret_key is defined
+  tags: ['vault', 'secrets']
 
-    - name: Get existing Vault data
+- name: Generate SECRET_KEY if not exists
+  ansible.builtin.set_fact:
+    netbox_secret_key: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,punctuation length=50') }}"
+  no_log: true
+  when: netbox_secret_key is not defined
+  tags: ['vault', 'secrets']
+
+- name: Store SECRET_KEY in Vault
+  block:
+    - name: Get existing Vault data if it exists
       ansible.builtin.set_fact:
-        existing_vault_data: "{{ vault_secret_key_check.json.data.data | default({}) }}"
-      when: vault_secret_key_check.status == 200
+        existing_vault_data: "{{ vault_secret_key_check.json.data.data }}"
+      when:
+        - vault_secret_key_check.status == 200
+        - vault_secret_key_check.json is defined
+        - vault_secret_key_check.json.data is defined
+        - vault_secret_key_check.json.data.data is defined
+        - vault_secret_key_check.json.data.data | type_debug == 'dict'
+
+    - name: Initialize empty vault data if none exists
+      ansible.builtin.set_fact:
+        existing_vault_data: {}
+      when: existing_vault_data is not defined
 
     - name: Merge SECRET_KEY with existing data
       ansible.builtin.set_fact:
-        vault_data_to_save: "{{ existing_vault_data | default({}) | combine({'secret_key': netbox_secret_key}) }}"
+        vault_data_to_save: "{{ existing_vault_data | combine({'secret_key': netbox_secret_key}) }}"
       no_log: true
 
     - name: Store SECRET_KEY in Vault
@@ -132,26 +156,36 @@
           data: "{{ vault_data_to_save }}"
         status_code: [200, 204]
       no_log: true
-  when: vault_secret_key_check.status == 404 or vault_secret_key_check.json.data.data.secret_key is not defined
+  rescue:
+    - name: Failed to save SECRET_KEY to Vault
+      ansible.builtin.debug:
+        msg: "WARNING: Failed to save SECRET_KEY to Vault, but continuing with generated key"
+  when:
+    - vault_secret_key_check.status == 404 or (vault_secret_key_check.status == 200 and vault_secret_key_check.json.data.data.secret_key is not defined)
   tags: ['vault', 'secrets']
 
-- name: Retrieve all secrets from Vault
+- name: Retrieve database password from Vault for configuration
   ansible.builtin.uri:
     url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
     method: GET
     headers:
       X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
     return_content: true
-    status_code: [200]
+    status_code: [200, 404]
   register: vault_secrets
   no_log: true
   tags: ['vault', 'secrets']
 
-- name: Set SECRET_KEY and database password from Vault
+- name: Set database password from Vault if available
   ansible.builtin.set_fact:
-    netbox_secret_key: "{{ vault_secrets.json.data.data.secret_key }}"
-    netbox_db_password: "{{ vault_secrets.json.data.data.db_password | default(netbox_db_password) }}"
+    netbox_db_password: "{{ vault_secrets.json.data.data.db_password }}"
   no_log: true
+  when:
+    - vault_secrets.status == 200
+    - vault_secrets.json is defined
+    - vault_secrets.json.data is defined
+    - vault_secrets.json.data.data is defined
+    - vault_secrets.json.data.data.db_password is defined
   tags: ['vault', 'secrets']
 
 - name: Create NetBox configuration from template

@@ -21,6 +21,16 @@ ALLOWED_HOSTS = [
 {% endif %}
 ]
 
+# CSRF trusted origins for reverse proxy configurations
+# Required when accessing NetBox through a reverse proxy with HTTPS
+CSRF_TRUSTED_ORIGINS = [
+{% if netbox_csrf_trusted_origins is defined and netbox_csrf_trusted_origins | length > 0 %}
+{% for origin in netbox_csrf_trusted_origins %}
+    '{{ origin }}',
+{% endfor %}
+{% endif %}
+]
+
 # PostgreSQL database configuration
 DATABASE = {
     'NAME': '{{ netbox_db_name }}',
