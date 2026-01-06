@@ -23,7 +23,7 @@
     enabled: true
   tags: ['service']
 
-- name: Check if database password exists in Vault
+- name: Check if database credentials exist in Vault
   ansible.builtin.uri:
     url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
     method: GET
@@ -35,32 +35,54 @@
   no_log: true
   tags: ['vault', 'secrets']
 
-- name: Retrieve NetBox database password from Vault
+- name: Retrieve NetBox database password from Vault if it exists
   ansible.builtin.set_fact:
     netbox_db_password: "{{ vault_check.json.data.data.db_password }}"
   no_log: true
-  when: vault_check.status == 200 and vault_check.json.data.data.db_password is defined
+  when:
+    - vault_check.status == 200
+    - vault_check.json is defined
+    - vault_check.json.data is defined
+    - vault_check.json.data.data is defined
+    - vault_check.json.data.data.db_password is defined
   tags: ['vault', 'secrets']
 
-- name: Generate database password if not in Vault
+- name: Generate database password if not exists
+  ansible.builtin.set_fact:
+    netbox_db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+  no_log: true
   when: netbox_db_password is not defined
+  tags: ['vault', 'secrets']
+
+- name: Store database credentials in Vault
   block:
-    - name: Generate secure database password
+    - name: Get existing Vault data if it exists
       ansible.builtin.set_fact:
-        netbox_db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+        existing_vault_data: "{{ vault_check.json.data.data }}"
+      when:
+        - vault_check.status == 200
+        - vault_check.json is defined
+        - vault_check.json.data is defined
+        - vault_check.json.data.data is defined
+        - vault_check.json.data.data | type_debug == 'dict'
+
+    - name: Initialize empty vault data if none exists
+      ansible.builtin.set_fact:
+        existing_vault_data: {}
+      when: existing_vault_data is not defined
+
+    - name: Merge database credentials with existing data
+      ansible.builtin.set_fact:
+        vault_data_to_save: "{{ existing_vault_data | combine({
+            'db_password': netbox_db_password,
+            'db_user': netbox_db_user,
+            'db_name': netbox_db_name,
+            'db_host': 'localhost',
+            'db_port': 5432
+          }) }}"
       no_log: true
 
-    - name: Get existing Vault data
-      ansible.builtin.set_fact:
-        existing_vault_data: "{{ vault_check.json.data.data | default({}) }}"
-      when: vault_check.status == 200
-
-    - name: Merge db_password with existing data
-      ansible.builtin.set_fact:
-        vault_data_to_save: "{{ existing_vault_data | default({}) | combine({'db_password': netbox_db_password}) }}"
-      no_log: true
-
-    - name: Store database password in Vault
+    - name: Store database credentials in Vault
       ansible.builtin.uri:
         url: "{{ vault_addr }}/v1/{{ vault_kv_path }}"
         method: POST
@@ -72,9 +94,18 @@
         status_code: [200, 204]
       no_log: true
   rescue:
-    - name: Password generation from Vault lookup failed, using generated password
+    - name: Failed to save credentials to Vault
       ansible.builtin.debug:
-        msg: "Using newly generated database password"
+        msg: "WARNING: Failed to save database credentials to Vault, but continuing with generated password"
+  when:
+    - vault_check.status == 404
+    - vault_check.status == 200 and (
+        vault_check.json is not defined or
+        vault_check.json.data is not defined or
+        vault_check.json.data.data is not defined or
+        vault_check.json.data.data | type_debug != 'dict' or
+        vault_check.json.data.data.db_password is not defined
+      )
   tags: ['vault', 'secrets']
 
 - name: Create NetBox database user

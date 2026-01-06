@@ -10,7 +10,26 @@
 
 # This is a list of valid fully-qualified domain names (FQDNs) for the NetBox server.
 # For testing purposes, '*' allows all hosts. In production, use specific domains.
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '{{ ansible_default_ipv4.address }}',
+{% if netbox_allowed_hosts is defined and netbox_allowed_hosts | length > 0 %}
+{% for host in netbox_allowed_hosts %}
+    '{{ host }}',
+{% endfor %}
+{% endif %}
+]
+
+# CSRF trusted origins for reverse proxy configurations
+# Required when accessing NetBox through a reverse proxy with HTTPS
+CSRF_TRUSTED_ORIGINS = [
+{% if netbox_csrf_trusted_origins is defined and netbox_csrf_trusted_origins | length > 0 %}
+{% for origin in netbox_csrf_trusted_origins %}
+    '{{ origin }}',
+{% endfor %}
+{% endif %}
+]
 
 # PostgreSQL database configuration
 DATABASE = {
