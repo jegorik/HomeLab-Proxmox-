@@ -161,7 +161,7 @@
       ansible.builtin.debug:
         msg: "WARNING: Failed to save SECRET_KEY to Vault, but continuing with generated key"
   when:
-    - vault_secret_key_check.status == 404 or (vault_secret_key_check.status == 200 and vault_secret_key_check.json.data.data.secret_key is not defined)
+    - vault_secret_key_check.status == 404 or (vault_secret_key_check.status == 200 and vault_secret_key_check.json is defined and vault_secret_key_check.json.data is defined and vault_secret_key_check.json.data.data is defined and vault_secret_key_check.json.data.data.secret_key is not defined)
   tags: ['vault', 'secrets']
 
 - name: Retrieve database password from Vault for configuration
